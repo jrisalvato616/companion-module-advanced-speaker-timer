@@ -3,6 +3,7 @@ import { GetActionsList } from './actions'
 import { GetFeedbacksList } from './feedbacks'
 import { GetVariableDefinitions, GetVariableValues } from './variables'
 import { SpeakerTimerConfig, GetConfigFields } from './config'
+import { GetPresetList } from './presets'
 import { Socket } from 'net'
 
 interface CompanionCommand {
@@ -68,6 +69,7 @@ export class AdvancedSpeakerTimerInstance extends InstanceBase<SpeakerTimerConfi
         this.setActionDefinitions(GetActionsList(this))
         this.setFeedbackDefinitions(GetFeedbacksList(this))
         this.setVariableDefinitions(GetVariableDefinitions())
+        this.setPresetDefinitions(GetPresetList(this))
 
         this.initConnection()
     }
@@ -204,11 +206,13 @@ export class AdvancedSpeakerTimerInstance extends InstanceBase<SpeakerTimerConfi
         if (response.action === 'timerPresets' && Array.isArray(response.presets)) {
             this.timerPresets = response.presets.map((p) => ({ id: p.id, name: p.name }))
             this.setActionDefinitions(GetActionsList(this))
+            this.setPresetDefinitions(GetPresetList(this))
             return
         }
         if (response.action === 'messagePresets' && Array.isArray(response.presets)) {
             this.messagePresets = response.presets.map((p) => ({ id: p.id, name: p.name }))
             this.setActionDefinitions(GetActionsList(this))
+            this.setPresetDefinitions(GetPresetList(this))
             return
         }
         // The app broadcasts when presets are added, edited, reordered or

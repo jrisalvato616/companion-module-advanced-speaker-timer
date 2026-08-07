@@ -6,6 +6,7 @@ const actions_1 = require("./actions");
 const feedbacks_1 = require("./feedbacks");
 const variables_1 = require("./variables");
 const config_1 = require("./config");
+const presets_1 = require("./presets");
 const net_1 = require("net");
 class AdvancedSpeakerTimerInstance extends base_1.InstanceBase {
     constructor(internal) {
@@ -25,6 +26,7 @@ class AdvancedSpeakerTimerInstance extends base_1.InstanceBase {
         this.setActionDefinitions((0, actions_1.GetActionsList)(this));
         this.setFeedbackDefinitions((0, feedbacks_1.GetFeedbacksList)(this));
         this.setVariableDefinitions((0, variables_1.GetVariableDefinitions)());
+        this.setPresetDefinitions((0, presets_1.GetPresetList)(this));
         this.initConnection();
     }
     async destroy() {
@@ -144,11 +146,13 @@ class AdvancedSpeakerTimerInstance extends base_1.InstanceBase {
         if (response.action === 'timerPresets' && Array.isArray(response.presets)) {
             this.timerPresets = response.presets.map((p) => ({ id: p.id, name: p.name }));
             this.setActionDefinitions((0, actions_1.GetActionsList)(this));
+            this.setPresetDefinitions((0, presets_1.GetPresetList)(this));
             return;
         }
         if (response.action === 'messagePresets' && Array.isArray(response.presets)) {
             this.messagePresets = response.presets.map((p) => ({ id: p.id, name: p.name }));
             this.setActionDefinitions((0, actions_1.GetActionsList)(this));
+            this.setPresetDefinitions((0, presets_1.GetPresetList)(this));
             return;
         }
         // The app broadcasts when presets are added, edited, reordered or
