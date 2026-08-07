@@ -161,7 +161,7 @@ function GetFeedbacksList(instance) {
             name: 'Live Message Active',
             description: 'Changes style when a live message is active',
             defaultStyle: {
-                bgcolor: (0, base_1.combineRgb)(128, 0, 128),
+                bgcolor: (0, base_1.combineRgb)(255, 0, 0),
                 color: (0, base_1.combineRgb)(255, 255, 255),
             },
             options: [],

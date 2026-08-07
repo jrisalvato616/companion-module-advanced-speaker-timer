@@ -154,7 +154,7 @@ export function GetFeedbacksList(instance: AdvancedSpeakerTimerInstance): Compan
             name: 'Live Message Active',
             description: 'Changes style when a live message is active',
             defaultStyle: {
-                bgcolor: combineRgb(128, 0, 128),
+                bgcolor: combineRgb(255, 0, 0),
                 color: combineRgb(255, 255, 255),
             },
             options: [],
