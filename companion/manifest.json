@@ -3,7 +3,7 @@
 	"name": "advanced-speaker-timer",
 	"shortname": "Speaker Timer",
 	"description": "Control Advanced Speaker Timer Pro over the network",
-	"version": "1.1.0",
+	"version": "1.1.1",
 	"license": "MIT",
 	"repository": "https://github.com/jrisalvato616/companion-module-advanced-speaker-timer",
 	"bugs": "https://github.com/jrisalvato616/companion-module-advanced-speaker-timer/issues",

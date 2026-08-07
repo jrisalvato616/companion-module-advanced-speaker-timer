@@ -143,4 +143,8 @@ class AdvancedSpeakerTimerInstance extends base_1.InstanceBase {
 }
 exports.AdvancedSpeakerTimerInstance = AdvancedSpeakerTimerInstance;
 exports.default = AdvancedSpeakerTimerInstance;
+// Hands the instance to Companion and starts the IPC handshake. Without this
+// the process loads, defines the class, and exits — which Companion reports as
+// "Failed to initialize instance: Restart forced".
+(0, base_1.runEntrypoint)(AdvancedSpeakerTimerInstance, []);
 //# sourceMappingURL=index.js.map

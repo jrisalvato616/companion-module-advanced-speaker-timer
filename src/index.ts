@@ -1,4 +1,4 @@
-import { Regex, InstanceBase, InstanceStatus, SomeCompanionConfigField } from '@companion-module/base'
+import { Regex, InstanceBase, InstanceStatus, SomeCompanionConfigField, runEntrypoint } from '@companion-module/base'
 import { GetActionsList } from './actions'
 import { GetFeedbacksList } from './feedbacks'
 import { GetVariableDefinitions, GetVariableValues } from './variables'
@@ -197,3 +197,8 @@ export class AdvancedSpeakerTimerInstance extends InstanceBase<SpeakerTimerConfi
 }
 
 export default AdvancedSpeakerTimerInstance
+
+// Hands the instance to Companion and starts the IPC handshake. Without this
+// the process loads, defines the class, and exits — which Companion reports as
+// "Failed to initialize instance: Restart forced".
+runEntrypoint(AdvancedSpeakerTimerInstance, [])
