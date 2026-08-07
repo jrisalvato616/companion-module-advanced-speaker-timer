@@ -86,11 +86,16 @@ function GetVariableDefinitions() {
     ];
 }
 exports.GetVariableDefinitions = GetVariableDefinitions;
+/** Matches the app: H:MM:SS past an hour, otherwise M:SS. */
 function formatTime(seconds) {
     const sign = seconds < 0 ? '-' : '';
     const absSeconds = Math.abs(seconds);
-    const minutes = Math.floor(absSeconds / 60);
+    const hours = Math.floor(absSeconds / 3600);
+    const minutes = Math.floor((absSeconds % 3600) / 60);
     const secs = absSeconds % 60;
+    if (hours > 0) {
+        return `${sign}${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
     return `${sign}${minutes}:${secs.toString().padStart(2, '0')}`;
 }
 function GetVariableValues(status) {

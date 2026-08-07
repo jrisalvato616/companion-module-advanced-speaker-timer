@@ -13,8 +13,11 @@ class AdvancedSpeakerTimerInstance extends base_1.InstanceBase {
         this.socket = null;
         this.reconnectTimer = null;
         this.statusPollTimer = null;
+        this.rxBuffer = '';
         this.connected = false;
         this.appStatus = null;
+        this.timerPresets = [];
+        this.messagePresets = [];
     }
     async init(config) {
         this.config = config;
@@ -52,6 +55,7 @@ class AdvancedSpeakerTimerInstance extends base_1.InstanceBase {
         }
         this.socket = new net_1.Socket();
         this.connected = false;
+        this.rxBuffer = '';
         this.socket.on('connect', () => {
             this.log('info', 'Connected to Advanced Speaker Timer Pro');
             this.connected = true;
@@ -64,20 +68,27 @@ class AdvancedSpeakerTimerInstance extends base_1.InstanceBase {
             // module only ever sees the state as it was at connect time, so
             // feedbacks and variables never update.
             this.sendCommand({ action: 'status' });
+            this.refreshPresets();
             this.startStatusPolling();
         });
         this.socket.on('data', (data) => {
-            try {
-                const lines = data.toString().trim().split('\n');
-                for (const line of lines) {
-                    if (!line.trim())
-                        continue;
+            var _a;
+            // Accumulate, because a JSON message can arrive split across TCP
+            // packets. Only whole newline-terminated lines are parsed; any
+            // trailing partial line stays buffered for the next chunk.
+            this.rxBuffer += data.toString();
+            const lines = this.rxBuffer.split('\n');
+            this.rxBuffer = (_a = lines.pop()) !== null && _a !== void 0 ? _a : '';
+            for (const line of lines) {
+                if (!line.trim())
+                    continue;
+                try {
                     const response = JSON.parse(line);
                     this.handleResponse(response);
                 }
-            }
-            catch (error) {
-                this.log('warn', `Error parsing response: ${error}`);
+                catch (error) {
+                    this.log('warn', `Error parsing response: ${error}`);
+                }
             }
         });
         this.socket.on('error', (error) => {
@@ -128,6 +139,24 @@ class AdvancedSpeakerTimerInstance extends base_1.InstanceBase {
         }, 5000);
     }
     handleResponse(response) {
+        var _a, _b;
+        // Preset lists arrive as a top-level action rather than under `data`.
+        if (response.action === 'timerPresets' && Array.isArray(response.presets)) {
+            this.timerPresets = response.presets.map((p) => ({ id: p.id, name: p.name }));
+            this.setActionDefinitions((0, actions_1.GetActionsList)(this));
+            return;
+        }
+        if (response.action === 'messagePresets' && Array.isArray(response.presets)) {
+            this.messagePresets = response.presets.map((p) => ({ id: p.id, name: p.name }));
+            this.setActionDefinitions((0, actions_1.GetActionsList)(this));
+            return;
+        }
+        // The app broadcasts when presets are added, edited, reordered or
+        // deleted, so pull the lists again to keep the dropdowns current.
+        if (((_a = response.action) === null || _a === void 0 ? void 0 : _a.startsWith('timerPreset')) || ((_b = response.action) === null || _b === void 0 ? void 0 : _b.startsWith('messagePreset'))) {
+            this.refreshPresets();
+            return;
+        }
         if (response.status === 'ok' && response.data) {
             // Check if this is a status response
             if (response.data.timerA && response.data.timerB) {
@@ -136,6 +165,16 @@ class AdvancedSpeakerTimerInstance extends base_1.InstanceBase {
                 this.checkFeedbacks();
             }
         }
+    }
+    refreshPresets() {
+        this.sendCommand({ action: 'getTimerPresets', timer: 'A' });
+        this.sendCommand({ action: 'getMessagePresets' });
+    }
+    getTimerPresets() {
+        return this.timerPresets;
+    }
+    getMessagePresets() {
+        return this.messagePresets;
     }
     updateVariables() {
         if (!this.appStatus)

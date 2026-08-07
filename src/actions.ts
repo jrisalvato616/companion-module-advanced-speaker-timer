@@ -2,6 +2,9 @@ import { CompanionActionEvent, CompanionActionDefinitions } from '@companion-mod
 import { AdvancedSpeakerTimerInstance } from './index'
 
 export function GetActionsList(instance: AdvancedSpeakerTimerInstance): CompanionActionDefinitions {
+    const timerPresetChoices = instance.getTimerPresets().map((p) => ({ id: p.id, label: p.name }))
+    const messagePresetChoices = instance.getMessagePresets().map((p) => ({ id: p.id, label: p.name }))
+
     return {
         start_timer_a: {
             name: 'Start Timer A',
@@ -219,56 +222,90 @@ export function GetActionsList(instance: AdvancedSpeakerTimerInstance): Companio
                     label: 'Message text',
                     default: 'Your message here',
                 },
+                {
+                    id: 'send',
+                    type: 'checkbox',
+                    label: 'Send to screen immediately',
+                    default: false,
+                },
             ],
             callback: (event: CompanionActionEvent) => {
                 const message = String(event.options.message)
-                instance.sendCommand({ action: 'setMessage', message })
+                const send = Boolean(event.options.send)
+                instance.sendCommand({ action: 'setMessage', message, send })
             },
         },
-        apply_preset_a: {
-            name: 'Apply Preset to Timer A',
-            description: 'Apply a timer preset to Timer A',
+        recall_timer_preset_a: {
+            name: 'Recall Preset to Timer A',
+            description: 'Apply one of your timer presets to Timer A',
             options: [
                 {
-                    id: 'preset',
+                    id: 'presetId',
                     type: 'dropdown',
                     label: 'Preset',
-                    default: 'Lightning Talk',
+                    default: timerPresetChoices[0]?.id ?? '',
+                    choices: timerPresetChoices,
+                },
+            ],
+            callback: (event: CompanionActionEvent) => {
+                const presetId = String(event.options.presetId)
+                instance.sendCommand({ action: 'recallTimerPreset', timer: 'A', presetId })
+            },
+        },
+        recall_timer_preset_b: {
+            name: 'Recall Preset to Timer B',
+            description: 'Apply one of your timer presets to Timer B',
+            options: [
+                {
+                    id: 'presetId',
+                    type: 'dropdown',
+                    label: 'Preset',
+                    default: timerPresetChoices[0]?.id ?? '',
+                    choices: timerPresetChoices,
+                },
+            ],
+            callback: (event: CompanionActionEvent) => {
+                const presetId = String(event.options.presetId)
+                instance.sendCommand({ action: 'recallTimerPreset', timer: 'B', presetId })
+            },
+        },
+        recall_message_preset: {
+            name: 'Recall Message Preset',
+            description: 'Load one of your message presets into the message field',
+            options: [
+                {
+                    id: 'presetId',
+                    type: 'dropdown',
+                    label: 'Message preset',
+                    default: messagePresetChoices[0]?.id ?? '',
+                    choices: messagePresetChoices,
+                },
+            ],
+            callback: (event: CompanionActionEvent) => {
+                const presetId = String(event.options.presetId)
+                instance.sendCommand({ action: 'recallMessagePreset', presetId })
+            },
+        },
+        set_layout: {
+            name: 'Set Layout',
+            description: 'Switch the display layout',
+            options: [
+                {
+                    id: 'layout',
+                    type: 'dropdown',
+                    label: 'Layout',
+                    default: 'Single Timer',
                     choices: [
-                        { id: 'Lightning Talk', label: 'Lightning Talk (5 min)' },
-                        { id: 'Short Presentation', label: 'Short Presentation (15 min)' },
-                        { id: 'Standard Talk', label: 'Standard Talk (20 min)' },
-                        { id: 'Keynote', label: 'Keynote (45 min)' },
-                        { id: 'Workshop Session', label: 'Workshop Session (90 min)' },
+                        { id: 'Single Timer', label: 'Single Timer' },
+                        { id: 'Dual Timers', label: 'Dual Timers' },
+                        { id: 'Clock Only', label: 'Clock Only' },
+                        { id: 'Clock and Timer', label: 'Clock and Timer' },
                     ],
                 },
             ],
             callback: (event: CompanionActionEvent) => {
-                const preset = String(event.options.preset)
-                instance.sendCommand({ action: 'applyPreset', timer: 'A', preset })
-            },
-        },
-        apply_preset_b: {
-            name: 'Apply Preset to Timer B',
-            description: 'Apply a timer preset to Timer B',
-            options: [
-                {
-                    id: 'preset',
-                    type: 'dropdown',
-                    label: 'Preset',
-                    default: 'Lightning Talk',
-                    choices: [
-                        { id: 'Lightning Talk', label: 'Lightning Talk (5 min)' },
-                        { id: 'Short Presentation', label: 'Short Presentation (15 min)' },
-                        { id: 'Standard Talk', label: 'Standard Talk (20 min)' },
-                        { id: 'Keynote', label: 'Keynote (45 min)' },
-                        { id: 'Workshop Session', label: 'Workshop Session (90 min)' },
-                    ],
-                },
-            ],
-            callback: (event: CompanionActionEvent) => {
-                const preset = String(event.options.preset)
-                instance.sendCommand({ action: 'applyPreset', timer: 'B', preset })
+                const layout = String(event.options.layout)
+                instance.sendCommand({ action: 'setLayout', layout })
             },
         },
         request_status: {

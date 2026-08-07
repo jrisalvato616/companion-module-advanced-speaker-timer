@@ -1,4 +1,4 @@
-import { Regex, InstanceBase, InstanceStatus, SomeCompanionConfigField, runEntrypoint } from '@companion-module/base'
+import { InstanceBase, InstanceStatus, SomeCompanionConfigField, runEntrypoint } from '@companion-module/base'
 import { GetActionsList } from './actions'
 import { GetFeedbacksList } from './feedbacks'
 import { GetVariableDefinitions, GetVariableValues } from './variables'
@@ -9,13 +9,23 @@ interface CompanionCommand {
     action: string
     timer?: string
     value?: string
-    preset?: string
+    presetId?: string
     message?: string
+    layout?: string
+    send?: boolean
+}
+
+export interface PresetInfo {
+    id: string
+    name: string
 }
 
 interface CompanionResponse {
-    status: string
+    status?: string
+    /** Present on preset lists and on broadcast notifications. */
+    action?: string
     data?: any
+    presets?: Array<{ id: string; name: string }>
 }
 
 interface TimerStatus {
@@ -40,8 +50,11 @@ export class AdvancedSpeakerTimerInstance extends InstanceBase<SpeakerTimerConfi
     private socket: Socket | null = null
     private reconnectTimer: NodeJS.Timeout | null = null
     private statusPollTimer: NodeJS.Timeout | null = null
+    private rxBuffer = ''
     private connected = false
     private appStatus: AppStatus | null = null
+    private timerPresets: PresetInfo[] = []
+    private messagePresets: PresetInfo[] = []
     public config!: SpeakerTimerConfig
 
     constructor(internal: unknown) {
@@ -93,6 +106,7 @@ export class AdvancedSpeakerTimerInstance extends InstanceBase<SpeakerTimerConfi
 
         this.socket = new Socket()
         this.connected = false
+        this.rxBuffer = ''
 
         this.socket.on('connect', () => {
             this.log('info', 'Connected to Advanced Speaker Timer Pro')
@@ -108,21 +122,27 @@ export class AdvancedSpeakerTimerInstance extends InstanceBase<SpeakerTimerConfi
             // module only ever sees the state as it was at connect time, so
             // feedbacks and variables never update.
             this.sendCommand({ action: 'status' })
+            this.refreshPresets()
             this.startStatusPolling()
         })
 
         this.socket.on('data', (data: Buffer) => {
-            try {
-                const lines = data.toString().trim().split('\n')
+            // Accumulate, because a JSON message can arrive split across TCP
+            // packets. Only whole newline-terminated lines are parsed; any
+            // trailing partial line stays buffered for the next chunk.
+            this.rxBuffer += data.toString()
 
-                for (const line of lines) {
-                    if (!line.trim()) continue
+            const lines = this.rxBuffer.split('\n')
+            this.rxBuffer = lines.pop() ?? ''
 
+            for (const line of lines) {
+                if (!line.trim()) continue
+                try {
                     const response: CompanionResponse = JSON.parse(line)
                     this.handleResponse(response)
+                } catch (error) {
+                    this.log('warn', `Error parsing response: ${error}`)
                 }
-            } catch (error) {
-                this.log('warn', `Error parsing response: ${error}`)
             }
         })
 
@@ -180,6 +200,24 @@ export class AdvancedSpeakerTimerInstance extends InstanceBase<SpeakerTimerConfi
     }
 
     private handleResponse(response: CompanionResponse): void {
+        // Preset lists arrive as a top-level action rather than under `data`.
+        if (response.action === 'timerPresets' && Array.isArray(response.presets)) {
+            this.timerPresets = response.presets.map((p) => ({ id: p.id, name: p.name }))
+            this.setActionDefinitions(GetActionsList(this))
+            return
+        }
+        if (response.action === 'messagePresets' && Array.isArray(response.presets)) {
+            this.messagePresets = response.presets.map((p) => ({ id: p.id, name: p.name }))
+            this.setActionDefinitions(GetActionsList(this))
+            return
+        }
+        // The app broadcasts when presets are added, edited, reordered or
+        // deleted, so pull the lists again to keep the dropdowns current.
+        if (response.action?.startsWith('timerPreset') || response.action?.startsWith('messagePreset')) {
+            this.refreshPresets()
+            return
+        }
+
         if (response.status === 'ok' && response.data) {
             // Check if this is a status response
             if (response.data.timerA && response.data.timerB) {
@@ -188,6 +226,19 @@ export class AdvancedSpeakerTimerInstance extends InstanceBase<SpeakerTimerConfi
                 this.checkFeedbacks()
             }
         }
+    }
+
+    private refreshPresets(): void {
+        this.sendCommand({ action: 'getTimerPresets', timer: 'A' })
+        this.sendCommand({ action: 'getMessagePresets' })
+    }
+
+    public getTimerPresets(): PresetInfo[] {
+        return this.timerPresets
+    }
+
+    public getMessagePresets(): PresetInfo[] {
+        return this.messagePresets
     }
 
     private updateVariables(): void {
