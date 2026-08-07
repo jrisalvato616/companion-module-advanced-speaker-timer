@@ -35,6 +35,10 @@ interface TimerStatus {
     duration: number
     warningTime: number
     label: string
+    /** Optional: older app versions don't report these. */
+    mode?: string
+    isWarning?: boolean
+    isOvertime?: boolean
 }
 
 interface AppStatus {

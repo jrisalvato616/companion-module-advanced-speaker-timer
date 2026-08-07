@@ -4,9 +4,9 @@ import { AdvancedSpeakerTimerInstance } from './index'
 const BLACK = combineRgb(0, 0, 0)
 const WHITE = combineRgb(255, 255, 255)
 const DARK = combineRgb(20, 20, 20)
-const GREEN = combineRgb(0, 160, 60)
+const GREEN = combineRgb(0, 220, 80)
 const AMBER = combineRgb(255, 165, 0)
-const RED = combineRgb(200, 0, 0)
+const RED = combineRgb(255, 40, 40)
 const BLUE = combineRgb(0, 90, 200)
 
 /**
@@ -28,25 +28,27 @@ export function GetPresetList(instance: AdvancedSpeakerTimerInstance): Companion
             style: {
                 text: `Timer ${timer}\n$(${instance.label}:timer_${lower}_remaining_time_formatted)`,
                 size: '14',
+                // White while reset/idle; the feedbacks below recolour only the
+                // text, leaving the button background black.
                 color: WHITE,
-                bgcolor: DARK,
+                bgcolor: BLACK,
             },
             steps: [{ down: [], up: [] }],
             feedbacks: [
                 {
                     feedbackId: `timer_${lower}_running`,
                     options: {},
-                    style: { bgcolor: GREEN, color: WHITE },
+                    style: { color: GREEN },
                 },
                 {
                     feedbackId: `timer_${lower}_warning`,
                     options: {},
-                    style: { bgcolor: AMBER, color: BLACK },
+                    style: { color: AMBER },
                 },
                 {
                     feedbackId: `timer_${lower}_overtime`,
                     options: {},
-                    style: { bgcolor: RED, color: WHITE },
+                    style: { color: RED },
                 },
             ],
         }
@@ -147,7 +149,7 @@ export function GetPresetList(instance: AdvancedSpeakerTimerInstance): Companion
         style: { text: 'Message', size: '18', color: WHITE, bgcolor: DARK },
         steps: [{ down: [{ actionId: 'toggle_message', options: {} }], up: [] }],
         feedbacks: [
-            { feedbackId: 'message_live', options: {}, style: { bgcolor: RED, color: WHITE } },
+            { feedbackId: 'message_live', options: {}, style: { bgcolor: combineRgb(200, 0, 0), color: WHITE } },
         ],
     }
 

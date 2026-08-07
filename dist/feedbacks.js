@@ -45,10 +45,14 @@ function GetFeedbacksList(instance) {
             options: [],
             callback: (feedback) => {
                 const status = instance.getAppStatus();
-                if (!(status === null || status === void 0 ? void 0 : status.timerA))
+                const timer = status === null || status === void 0 ? void 0 : status.timerA;
+                if (!timer)
                     return false;
-                const timeLeft = status.timerA.duration - status.timerA.currentTime;
-                return timeLeft <= status.timerA.warningTime && timeLeft > 0;
+                // The app reports this directly; fall back for older versions.
+                if (typeof timer.isWarning === 'boolean')
+                    return timer.isWarning;
+                const timeLeft = timer.duration - timer.currentTime;
+                return timeLeft <= timer.warningTime && timeLeft > 0;
             },
         },
         timer_a_overtime: {
@@ -61,9 +65,15 @@ function GetFeedbacksList(instance) {
             },
             options: [],
             callback: (feedback) => {
-                var _a;
                 const status = instance.getAppStatus();
-                return ((_a = status === null || status === void 0 ? void 0 : status.timerA) === null || _a === void 0 ? void 0 : _a.state) === 'overtime';
+                const timer = status === null || status === void 0 ? void 0 : status.timerA;
+                if (!timer)
+                    return false;
+                // With a Count Up end behaviour the app keeps the state as
+                // "running" past zero, so rely on its computed flag.
+                if (typeof timer.isOvertime === 'boolean')
+                    return timer.isOvertime;
+                return timer.state === 'overtime';
             },
         },
         timer_b_running: {
@@ -107,10 +117,14 @@ function GetFeedbacksList(instance) {
             options: [],
             callback: (feedback) => {
                 const status = instance.getAppStatus();
-                if (!(status === null || status === void 0 ? void 0 : status.timerB))
+                const timer = status === null || status === void 0 ? void 0 : status.timerB;
+                if (!timer)
                     return false;
-                const timeLeft = status.timerB.duration - status.timerB.currentTime;
-                return timeLeft <= status.timerB.warningTime && timeLeft > 0;
+                // The app reports this directly; fall back for older versions.
+                if (typeof timer.isWarning === 'boolean')
+                    return timer.isWarning;
+                const timeLeft = timer.duration - timer.currentTime;
+                return timeLeft <= timer.warningTime && timeLeft > 0;
             },
         },
         timer_b_overtime: {
@@ -123,9 +137,15 @@ function GetFeedbacksList(instance) {
             },
             options: [],
             callback: (feedback) => {
-                var _a;
                 const status = instance.getAppStatus();
-                return ((_a = status === null || status === void 0 ? void 0 : status.timerB) === null || _a === void 0 ? void 0 : _a.state) === 'overtime';
+                const timer = status === null || status === void 0 ? void 0 : status.timerB;
+                if (!timer)
+                    return false;
+                // With a Count Up end behaviour the app keeps the state as
+                // "running" past zero, so rely on its computed flag.
+                if (typeof timer.isOvertime === 'boolean')
+                    return timer.isOvertime;
+                return timer.state === 'overtime';
             },
         },
         display_visible: {

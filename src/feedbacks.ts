@@ -42,10 +42,14 @@ export function GetFeedbacksList(instance: AdvancedSpeakerTimerInstance): Compan
             options: [],
             callback: (feedback: CompanionFeedbackInfo): boolean => {
                 const status = instance.getAppStatus()
-                if (!status?.timerA) return false
+                const timer = status?.timerA
+                if (!timer) return false
 
-                const timeLeft = status.timerA.duration - status.timerA.currentTime
-                return timeLeft <= status.timerA.warningTime && timeLeft > 0
+                // The app reports this directly; fall back for older versions.
+                if (typeof timer.isWarning === 'boolean') return timer.isWarning
+
+                const timeLeft = timer.duration - timer.currentTime
+                return timeLeft <= timer.warningTime && timeLeft > 0
             },
         },
         timer_a_overtime: {
@@ -59,7 +63,14 @@ export function GetFeedbacksList(instance: AdvancedSpeakerTimerInstance): Compan
             options: [],
             callback: (feedback: CompanionFeedbackInfo): boolean => {
                 const status = instance.getAppStatus()
-                return status?.timerA?.state === 'overtime'
+                const timer = status?.timerA
+                if (!timer) return false
+
+                // With a Count Up end behaviour the app keeps the state as
+                // "running" past zero, so rely on its computed flag.
+                if (typeof timer.isOvertime === 'boolean') return timer.isOvertime
+
+                return timer.state === 'overtime'
             },
         },
         timer_b_running: {
@@ -101,10 +112,14 @@ export function GetFeedbacksList(instance: AdvancedSpeakerTimerInstance): Compan
             options: [],
             callback: (feedback: CompanionFeedbackInfo): boolean => {
                 const status = instance.getAppStatus()
-                if (!status?.timerB) return false
+                const timer = status?.timerB
+                if (!timer) return false
 
-                const timeLeft = status.timerB.duration - status.timerB.currentTime
-                return timeLeft <= status.timerB.warningTime && timeLeft > 0
+                // The app reports this directly; fall back for older versions.
+                if (typeof timer.isWarning === 'boolean') return timer.isWarning
+
+                const timeLeft = timer.duration - timer.currentTime
+                return timeLeft <= timer.warningTime && timeLeft > 0
             },
         },
         timer_b_overtime: {
@@ -118,7 +133,14 @@ export function GetFeedbacksList(instance: AdvancedSpeakerTimerInstance): Compan
             options: [],
             callback: (feedback: CompanionFeedbackInfo): boolean => {
                 const status = instance.getAppStatus()
-                return status?.timerB?.state === 'overtime'
+                const timer = status?.timerB
+                if (!timer) return false
+
+                // With a Count Up end behaviour the app keeps the state as
+                // "running" past zero, so rely on its computed flag.
+                if (typeof timer.isOvertime === 'boolean') return timer.isOvertime
+
+                return timer.state === 'overtime'
             },
         },
         display_visible: {
