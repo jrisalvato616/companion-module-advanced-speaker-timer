@@ -60,6 +60,30 @@ inside the package.
 `runtime.type` is currently `node18`, which loads on both Companion 3.x and
 4.x. Bump it to `node22` only if you no longer care about Companion 3.x.
 
+## Publishing to the public module repo
+
+This folder lives inside the private `advanced-speaker-timer` repo, which is
+the single source of truth. The public module-only repo is a subtree of it:
+
+```bash
+git push                                    # private repo (app + module)
+git subtree push --prefix=companion-module-advanced-speaker-timer module-public main
+```
+
+The `module-public` remote is
+`https://github.com/jrisalvato616/companion-module-advanced-speaker-timer`.
+
+## Two things that will silently break the module
+
+Both were real bugs here, and neither shows up in developer mode:
+
+1. **`runEntrypoint()` must be called** at the end of `src/index.ts`. Without
+   it the process starts, defines the class, and exits — Companion reports
+   "Failed to initialize instance: Restart forced" on a loop, and because no
+   instance runs, the config fields (Host/Port) never appear.
+2. **Status must be polled.** Requesting it only on connect leaves every
+   feedback and variable frozen at the state from connect time.
+
 ## Bumping the version
 
 Update `version` in **both** `package.json` and `companion/manifest.json`, then
