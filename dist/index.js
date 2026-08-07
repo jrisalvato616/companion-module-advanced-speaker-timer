@@ -79,6 +79,12 @@ class AdvancedSpeakerTimerInstance extends base_1.InstanceBase {
             // packets. Only whole newline-terminated lines are parsed; any
             // trailing partial line stays buffered for the next chunk.
             this.rxBuffer += data.toString();
+            // Don't grow without bound if the peer never sends a newline.
+            if (this.rxBuffer.length > 1000000) {
+                this.log('warn', 'Discarding oversized response buffer');
+                this.rxBuffer = '';
+                return;
+            }
             const lines = this.rxBuffer.split('\n');
             this.rxBuffer = (_a = lines.pop()) !== null && _a !== void 0 ? _a : '';
             for (const line of lines) {

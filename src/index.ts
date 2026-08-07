@@ -139,6 +139,13 @@ export class AdvancedSpeakerTimerInstance extends InstanceBase<SpeakerTimerConfi
             // trailing partial line stays buffered for the next chunk.
             this.rxBuffer += data.toString()
 
+            // Don't grow without bound if the peer never sends a newline.
+            if (this.rxBuffer.length > 1_000_000) {
+                this.log('warn', 'Discarding oversized response buffer')
+                this.rxBuffer = ''
+                return
+            }
+
             const lines = this.rxBuffer.split('\n')
             this.rxBuffer = lines.pop() ?? ''
 
