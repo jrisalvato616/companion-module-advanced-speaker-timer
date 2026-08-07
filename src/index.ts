@@ -39,6 +39,7 @@ interface AppStatus {
 export class AdvancedSpeakerTimerInstance extends InstanceBase<SpeakerTimerConfig> {
     private socket: Socket | null = null
     private reconnectTimer: NodeJS.Timeout | null = null
+    private statusPollTimer: NodeJS.Timeout | null = null
     private connected = false
     private appStatus: AppStatus | null = null
     public config!: SpeakerTimerConfig
@@ -59,6 +60,7 @@ export class AdvancedSpeakerTimerInstance extends InstanceBase<SpeakerTimerConfi
     }
 
     async destroy(): Promise<void> {
+        this.stopStatusPolling()
         if (this.reconnectTimer) {
             clearTimeout(this.reconnectTimer)
             this.reconnectTimer = null
@@ -102,8 +104,11 @@ export class AdvancedSpeakerTimerInstance extends InstanceBase<SpeakerTimerConfi
                 this.reconnectTimer = null
             }
 
-            // Request initial status
+            // Request initial status, then keep polling. Without this the
+            // module only ever sees the state as it was at connect time, so
+            // feedbacks and variables never update.
             this.sendCommand({ action: 'status' })
+            this.startStatusPolling()
         })
 
         this.socket.on('data', (data: Buffer) => {
@@ -125,6 +130,7 @@ export class AdvancedSpeakerTimerInstance extends InstanceBase<SpeakerTimerConfi
             this.log('warn', `Connection error: ${error.message}`)
             this.updateStatus(InstanceStatus.ConnectionFailure)
             this.connected = false
+            this.stopStatusPolling()
             this.scheduleReconnect()
         })
 
@@ -132,6 +138,7 @@ export class AdvancedSpeakerTimerInstance extends InstanceBase<SpeakerTimerConfi
             this.log('warn', 'Connection closed')
             this.updateStatus(InstanceStatus.Disconnected)
             this.connected = false
+            this.stopStatusPolling()
             this.scheduleReconnect()
         })
 
@@ -140,6 +147,23 @@ export class AdvancedSpeakerTimerInstance extends InstanceBase<SpeakerTimerConfi
         } catch (error) {
             this.log('error', `Failed to connect: ${error}`)
             this.scheduleReconnect()
+        }
+    }
+
+    /** Poll once a second so the countdown variables stay current. */
+    private startStatusPolling(): void {
+        this.stopStatusPolling()
+        this.statusPollTimer = setInterval(() => {
+            if (this.connected) {
+                this.sendCommand({ action: 'status' })
+            }
+        }, 1000)
+    }
+
+    private stopStatusPolling(): void {
+        if (this.statusPollTimer) {
+            clearInterval(this.statusPollTimer)
+            this.statusPollTimer = null
         }
     }
 

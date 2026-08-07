@@ -12,6 +12,7 @@ class AdvancedSpeakerTimerInstance extends base_1.InstanceBase {
         super(internal);
         this.socket = null;
         this.reconnectTimer = null;
+        this.statusPollTimer = null;
         this.connected = false;
         this.appStatus = null;
     }
@@ -24,6 +25,7 @@ class AdvancedSpeakerTimerInstance extends base_1.InstanceBase {
         this.initConnection();
     }
     async destroy() {
+        this.stopStatusPolling();
         if (this.reconnectTimer) {
             clearTimeout(this.reconnectTimer);
             this.reconnectTimer = null;
@@ -58,8 +60,11 @@ class AdvancedSpeakerTimerInstance extends base_1.InstanceBase {
                 clearTimeout(this.reconnectTimer);
                 this.reconnectTimer = null;
             }
-            // Request initial status
+            // Request initial status, then keep polling. Without this the
+            // module only ever sees the state as it was at connect time, so
+            // feedbacks and variables never update.
             this.sendCommand({ action: 'status' });
+            this.startStatusPolling();
         });
         this.socket.on('data', (data) => {
             try {
@@ -79,12 +84,14 @@ class AdvancedSpeakerTimerInstance extends base_1.InstanceBase {
             this.log('warn', `Connection error: ${error.message}`);
             this.updateStatus(base_1.InstanceStatus.ConnectionFailure);
             this.connected = false;
+            this.stopStatusPolling();
             this.scheduleReconnect();
         });
         this.socket.on('close', () => {
             this.log('warn', 'Connection closed');
             this.updateStatus(base_1.InstanceStatus.Disconnected);
             this.connected = false;
+            this.stopStatusPolling();
             this.scheduleReconnect();
         });
         try {
@@ -93,6 +100,21 @@ class AdvancedSpeakerTimerInstance extends base_1.InstanceBase {
         catch (error) {
             this.log('error', `Failed to connect: ${error}`);
             this.scheduleReconnect();
+        }
+    }
+    /** Poll once a second so the countdown variables stay current. */
+    startStatusPolling() {
+        this.stopStatusPolling();
+        this.statusPollTimer = setInterval(() => {
+            if (this.connected) {
+                this.sendCommand({ action: 'status' });
+            }
+        }, 1000);
+    }
+    stopStatusPolling() {
+        if (this.statusPollTimer) {
+            clearInterval(this.statusPollTimer);
+            this.statusPollTimer = null;
         }
     }
     scheduleReconnect() {
