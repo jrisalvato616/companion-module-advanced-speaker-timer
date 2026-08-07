@@ -39,6 +39,7 @@ interface TimerStatus {
     mode?: string
     isWarning?: boolean
     isOvertime?: boolean
+    displayText?: string
 }
 
 interface AppStatus {

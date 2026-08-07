@@ -6,6 +6,8 @@ interface TimerStatus {
     duration: number
     warningTime: number
     label: string
+    /** Optional: older app versions don't report this. */
+    displayText?: string
 }
 
 interface AppStatus {
@@ -126,7 +128,9 @@ export function GetVariableValues(status: AppStatus): CompanionVariableValues {
         timer_a_current_time: status.timerA.currentTime,
         timer_a_current_time_formatted: formatTime(status.timerA.currentTime),
         timer_a_remaining_time: timerARemaining,
-        timer_a_remaining_time_formatted: formatTime(timerARemaining),
+        // Prefer the app's own text so overtime shows "+1:30" exactly as it
+        // does on screen, rather than a negative remaining time.
+        timer_a_remaining_time_formatted: status.timerA.displayText ?? formatTime(timerARemaining),
         timer_a_duration: status.timerA.duration,
         timer_a_duration_formatted: formatTime(status.timerA.duration),
         timer_a_label: status.timerA.label,
@@ -135,7 +139,7 @@ export function GetVariableValues(status: AppStatus): CompanionVariableValues {
         timer_b_current_time: status.timerB.currentTime,
         timer_b_current_time_formatted: formatTime(status.timerB.currentTime),
         timer_b_remaining_time: timerBRemaining,
-        timer_b_remaining_time_formatted: formatTime(timerBRemaining),
+        timer_b_remaining_time_formatted: status.timerB.displayText ?? formatTime(timerBRemaining),
         timer_b_duration: status.timerB.duration,
         timer_b_duration_formatted: formatTime(status.timerB.duration),
         timer_b_label: status.timerB.label,

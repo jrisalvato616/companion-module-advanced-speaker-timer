@@ -99,7 +99,7 @@ function formatTime(seconds) {
     return `${sign}${minutes}:${secs.toString().padStart(2, '0')}`;
 }
 function GetVariableValues(status) {
-    var _a;
+    var _a, _b, _c;
     const timerARemaining = status.timerA.duration - status.timerA.currentTime;
     const timerBRemaining = status.timerB.duration - status.timerB.currentTime;
     return {
@@ -107,7 +107,9 @@ function GetVariableValues(status) {
         timer_a_current_time: status.timerA.currentTime,
         timer_a_current_time_formatted: formatTime(status.timerA.currentTime),
         timer_a_remaining_time: timerARemaining,
-        timer_a_remaining_time_formatted: formatTime(timerARemaining),
+        // Prefer the app's own text so overtime shows "+1:30" exactly as it
+        // does on screen, rather than a negative remaining time.
+        timer_a_remaining_time_formatted: (_a = status.timerA.displayText) !== null && _a !== void 0 ? _a : formatTime(timerARemaining),
         timer_a_duration: status.timerA.duration,
         timer_a_duration_formatted: formatTime(status.timerA.duration),
         timer_a_label: status.timerA.label,
@@ -115,12 +117,12 @@ function GetVariableValues(status) {
         timer_b_current_time: status.timerB.currentTime,
         timer_b_current_time_formatted: formatTime(status.timerB.currentTime),
         timer_b_remaining_time: timerBRemaining,
-        timer_b_remaining_time_formatted: formatTime(timerBRemaining),
+        timer_b_remaining_time_formatted: (_b = status.timerB.displayText) !== null && _b !== void 0 ? _b : formatTime(timerBRemaining),
         timer_b_duration: status.timerB.duration,
         timer_b_duration_formatted: formatTime(status.timerB.duration),
         timer_b_label: status.timerB.label,
         display_shown: status.displayShown.toString(),
-        timer_visible: ((_a = status.timerVisible) !== null && _a !== void 0 ? _a : true).toString(),
+        timer_visible: ((_c = status.timerVisible) !== null && _c !== void 0 ? _c : true).toString(),
         message_is_live: status.messageIsLive.toString(),
         live_message: status.liveMessage,
     };
