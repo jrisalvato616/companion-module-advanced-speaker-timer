@@ -1,0 +1,25 @@
+{
+	"id": "advanced-speaker-timer",
+	"name": "advanced-speaker-timer",
+	"shortname": "Speaker Timer",
+	"description": "Control Advanced Speaker Timer Pro over the network",
+	"version": "1.0.0",
+	"license": "MIT",
+	"repository": "https://github.com/jrisalvato/companion-module-advanced-speaker-timer",
+	"bugs": "https://github.com/jrisalvato/companion-module-advanced-speaker-timer/issues",
+	"maintainers": [
+		{
+			"name": "Jeff Risalvato"
+		}
+	],
+	"legacyIds": [],
+	"runtime": {
+		"type": "node18",
+		"api": "nodejs-ipc",
+		"apiVersion": "1.13.2",
+		"entrypoint": "../dist/index.js"
+	},
+	"manufacturer": "Advanced Speaker Timer",
+	"products": ["Advanced Speaker Timer Pro"],
+	"keywords": ["timer", "speaker", "presentation"]
+}

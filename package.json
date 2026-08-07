@@ -5,10 +5,6 @@
   "description": "Companion module for Advanced Speaker Timer Pro",
   "author": "Advanced Speaker Timer Pro",
   "license": "MIT",
-  "api": "^1.13.0",
-  "manufacturer": "Advanced Speaker Timer Pro",
-  "product": "Advanced Speaker Timer Pro",
-  "shortname": "speaker-timer",
   "keywords": [
     "timer",
     "speaker",
@@ -19,18 +15,21 @@
     "dev": "npm run build:watch",
     "build": "rimraf dist && npm run build:main",
     "build:main": "tsc -p tsconfig.json",
-    "build:watch": "tsc -p tsconfig.json --watch"
+    "build:watch": "tsc -p tsconfig.json --watch",
+    "check": "companion-module-check",
+    "package": "npm run build && companion-module-build"
   },
   "dependencies": {
     "@companion-module/base": "~1.13.2"
   },
   "devDependencies": {
+    "@companion-module/tools": "^2.7.2",
     "@types/node": "^20.0.0",
     "rimraf": "^5.0.5",
     "typescript": "~5.2.2"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-repo/companion-module-advanced-speaker-timer.git"
+    "url": "https://github.com/jrisalvato/companion-module-advanced-speaker-timer.git"
   }
 }
