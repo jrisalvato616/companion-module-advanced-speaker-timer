@@ -69,7 +69,11 @@ function GetVariableDefinitions() {
         },
         {
             variableId: 'display_shown',
-            name: 'Display Visible (true/false)',
+            name: 'Output Enabled (true/false)',
+        },
+        {
+            variableId: 'timer_visible',
+            name: 'Timer Visible (true/false)',
         },
         {
             variableId: 'message_is_live',
@@ -90,6 +94,7 @@ function formatTime(seconds) {
     return `${sign}${minutes}:${secs.toString().padStart(2, '0')}`;
 }
 function GetVariableValues(status) {
+    var _a;
     const timerARemaining = status.timerA.duration - status.timerA.currentTime;
     const timerBRemaining = status.timerB.duration - status.timerB.currentTime;
     return {
@@ -110,6 +115,7 @@ function GetVariableValues(status) {
         timer_b_duration_formatted: formatTime(status.timerB.duration),
         timer_b_label: status.timerB.label,
         display_shown: status.displayShown.toString(),
+        timer_visible: ((_a = status.timerVisible) !== null && _a !== void 0 ? _a : true).toString(),
         message_is_live: status.messageIsLive.toString(),
         live_message: status.liveMessage,
     };

@@ -12,6 +12,8 @@ interface AppStatus {
     timerA: TimerStatus
     timerB: TimerStatus
     displayShown: boolean
+    /** Optional: older app versions don't report this. */
+    timerVisible?: boolean
     messageIsLive: boolean
     liveMessage: string
 }
@@ -84,7 +86,11 @@ export function GetVariableDefinitions(): CompanionVariableDefinition[] {
         },
         {
             variableId: 'display_shown',
-            name: 'Display Visible (true/false)',
+            name: 'Output Enabled (true/false)',
+        },
+        {
+            variableId: 'timer_visible',
+            name: 'Timer Visible (true/false)',
         },
         {
             variableId: 'message_is_live',
@@ -129,6 +135,7 @@ export function GetVariableValues(status: AppStatus): CompanionVariableValues {
         timer_b_label: status.timerB.label,
 
         display_shown: status.displayShown.toString(),
+        timer_visible: (status.timerVisible ?? true).toString(),
         message_is_live: status.messageIsLive.toString(),
         live_message: status.liveMessage,
     }

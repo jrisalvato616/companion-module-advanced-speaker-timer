@@ -130,8 +130,8 @@ function GetFeedbacksList(instance) {
         },
         display_visible: {
             type: 'boolean',
-            name: 'Display Visible',
-            description: 'Changes style when the display is visible',
+            name: 'Output Enabled',
+            description: 'Changes style when the output window is up',
             defaultStyle: {
                 bgcolor: (0, base_1.combineRgb)(0, 0, 255),
                 color: (0, base_1.combineRgb)(255, 255, 255),
@@ -140,6 +140,20 @@ function GetFeedbacksList(instance) {
             callback: (feedback) => {
                 const status = instance.getAppStatus();
                 return (status === null || status === void 0 ? void 0 : status.displayShown) === true;
+            },
+        },
+        timer_visible: {
+            type: 'boolean',
+            name: 'Timer Visible',
+            description: 'Changes style when the timer is showing on the output',
+            defaultStyle: {
+                bgcolor: (0, base_1.combineRgb)(0, 128, 255),
+                color: (0, base_1.combineRgb)(255, 255, 255),
+            },
+            options: [],
+            callback: (feedback) => {
+                const status = instance.getAppStatus();
+                return (status === null || status === void 0 ? void 0 : status.timerVisible) === true;
             },
         },
         message_live: {

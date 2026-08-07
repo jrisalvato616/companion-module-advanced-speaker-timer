@@ -154,27 +154,51 @@ export function GetActionsList(instance: AdvancedSpeakerTimerInstance): Companio
             },
         },
         show_display: {
-            name: 'Show Display',
-            description: 'Show the timer display',
+            name: 'Enable Output',
+            description: 'Put the output window up on the external display',
             options: [],
             callback: (event: CompanionActionEvent) => {
                 instance.sendCommand({ action: 'showDisplay' })
             },
         },
         hide_display: {
-            name: 'Hide Display',
-            description: 'Hide the timer display',
+            name: 'Disable Output',
+            description: 'Take the output window down and release the display',
             options: [],
             callback: (event: CompanionActionEvent) => {
                 instance.sendCommand({ action: 'hideDisplay' })
             },
         },
         toggle_display: {
-            name: 'Toggle Display',
-            description: 'Toggle the timer display visibility',
+            name: 'Toggle Output',
+            description: 'Toggle the output window on the external display',
             options: [],
             callback: (event: CompanionActionEvent) => {
                 instance.sendCommand({ action: 'toggleDisplay' })
+            },
+        },
+        show_timer: {
+            name: 'Show Timer',
+            description: 'Show the timer over the background',
+            options: [],
+            callback: (event: CompanionActionEvent) => {
+                instance.sendCommand({ action: 'showTimer' })
+            },
+        },
+        hide_timer: {
+            name: 'Hide Timer',
+            description: 'Hide the timer, leaving the background on screen',
+            options: [],
+            callback: (event: CompanionActionEvent) => {
+                instance.sendCommand({ action: 'hideTimer' })
+            },
+        },
+        toggle_timer_visible: {
+            name: 'Toggle Timer',
+            description: 'Show or hide the timer without taking the output down',
+            options: [],
+            callback: (event: CompanionActionEvent) => {
+                instance.sendCommand({ action: 'toggleTimerVisible' })
             },
         },
         toggle_message: {

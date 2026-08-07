@@ -123,8 +123,8 @@ export function GetFeedbacksList(instance: AdvancedSpeakerTimerInstance): Compan
         },
         display_visible: {
             type: 'boolean',
-            name: 'Display Visible',
-            description: 'Changes style when the display is visible',
+            name: 'Output Enabled',
+            description: 'Changes style when the output window is up',
             defaultStyle: {
                 bgcolor: combineRgb(0, 0, 255),
                 color: combineRgb(255, 255, 255),
@@ -133,6 +133,20 @@ export function GetFeedbacksList(instance: AdvancedSpeakerTimerInstance): Compan
             callback: (feedback: CompanionFeedbackInfo): boolean => {
                 const status = instance.getAppStatus()
                 return status?.displayShown === true
+            },
+        },
+        timer_visible: {
+            type: 'boolean',
+            name: 'Timer Visible',
+            description: 'Changes style when the timer is showing on the output',
+            defaultStyle: {
+                bgcolor: combineRgb(0, 128, 255),
+                color: combineRgb(255, 255, 255),
+            },
+            options: [],
+            callback: (feedback: CompanionFeedbackInfo): boolean => {
+                const status = instance.getAppStatus()
+                return status?.timerVisible === true
             },
         },
         message_live: {

@@ -30,6 +30,8 @@ interface AppStatus {
     timerA: TimerStatus
     timerB: TimerStatus
     displayShown: boolean
+    /** Optional: older app versions don't report this. */
+    timerVisible?: boolean
     messageIsLive: boolean
     liveMessage: string
 }
