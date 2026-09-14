@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.GetFeedbacksList = void 0;
 const base_1 = require("@companion-module/base");
+const timerModes_1 = require("./timerModes");
 function GetFeedbacksList(instance) {
     return {
         timer_a_running: {
@@ -188,6 +189,28 @@ function GetFeedbacksList(instance) {
             callback: (feedback) => {
                 const status = instance.getAppStatus();
                 return (status === null || status === void 0 ? void 0 : status.messageIsLive) === true;
+            },
+        },
+        timer_mode: {
+            type: 'boolean',
+            name: 'Timer Mode Selected',
+            description: 'Changes style while the app is in the chosen timer mode',
+            defaultStyle: {
+                bgcolor: (0, base_1.combineRgb)(0, 122, 255),
+                color: (0, base_1.combineRgb)(255, 255, 255),
+            },
+            options: [
+                {
+                    id: 'layout',
+                    type: 'dropdown',
+                    label: 'Timer Mode',
+                    default: 'Single Timer',
+                    choices: timerModes_1.TIMER_MODE_CHOICES,
+                },
+            ],
+            callback: (feedback) => {
+                const status = instance.getAppStatus();
+                return (status === null || status === void 0 ? void 0 : status.layout) === (0, timerModes_1.normalizeTimerMode)(feedback.options.layout);
             },
         },
     };

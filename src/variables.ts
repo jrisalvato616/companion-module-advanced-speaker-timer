@@ -18,6 +18,8 @@ interface AppStatus {
     timerVisible?: boolean
     messageIsLive: boolean
     liveMessage: string
+    /** Optional: older app versions don't report this. */
+    layout?: string
 }
 
 export function GetVariableDefinitions(): CompanionVariableDefinition[] {
@@ -102,6 +104,10 @@ export function GetVariableDefinitions(): CompanionVariableDefinition[] {
             variableId: 'live_message',
             name: 'Current Live Message Text',
         },
+        {
+            variableId: 'timer_mode',
+            name: 'Timer Mode',
+        },
     ]
 }
 
@@ -148,5 +154,6 @@ export function GetVariableValues(status: AppStatus): CompanionVariableValues {
         timer_visible: (status.timerVisible ?? true).toString(),
         message_is_live: status.messageIsLive.toString(),
         live_message: status.liveMessage,
+        timer_mode: status.layout ?? '',
     }
 }

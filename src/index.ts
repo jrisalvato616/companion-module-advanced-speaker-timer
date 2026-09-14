@@ -50,6 +50,8 @@ interface AppStatus {
     timerVisible?: boolean
     messageIsLive: boolean
     liveMessage: string
+    /** Timer mode name, e.g. "Clock + Timer". Optional: older app versions don't report it. */
+    layout?: string
 }
 
 export class AdvancedSpeakerTimerInstance extends InstanceBase<SpeakerTimerConfig> {

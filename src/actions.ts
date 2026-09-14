@@ -1,3 +1,4 @@
+import { TIMER_MODE_CHOICES, normalizeTimerMode } from './timerModes'
 import { CompanionActionEvent, CompanionActionDefinitions } from '@companion-module/base'
 import { AdvancedSpeakerTimerInstance } from './index'
 
@@ -287,25 +288,22 @@ export function GetActionsList(instance: AdvancedSpeakerTimerInstance): Companio
             },
         },
         set_layout: {
-            name: 'Set Layout',
-            description: 'Switch the display layout',
+            name: 'Set Timer Mode',
+            description: 'Switch between Single Timer, Dual Timers, Clock Only and Clock and Timer',
             options: [
                 {
                     id: 'layout',
                     type: 'dropdown',
-                    label: 'Layout',
+                    label: 'Timer Mode',
                     default: 'Single Timer',
-                    choices: [
-                        { id: 'Single Timer', label: 'Single Timer' },
-                        { id: 'Dual Timers', label: 'Dual Timers' },
-                        { id: 'Clock Only', label: 'Clock Only' },
-                        { id: 'Clock and Timer', label: 'Clock and Timer' },
-                    ],
+                    choices: TIMER_MODE_CHOICES,
                 },
             ],
             callback: (event: CompanionActionEvent) => {
-                const layout = String(event.options.layout)
+                const layout = normalizeTimerMode(event.options.layout)
                 instance.sendCommand({ action: 'setLayout', layout })
+                // Light the matching mode button now rather than on the next poll.
+                instance.requestStatus()
             },
         },
         request_status: {

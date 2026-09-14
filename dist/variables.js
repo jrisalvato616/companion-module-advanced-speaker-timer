@@ -83,6 +83,10 @@ function GetVariableDefinitions() {
             variableId: 'live_message',
             name: 'Current Live Message Text',
         },
+        {
+            variableId: 'timer_mode',
+            name: 'Timer Mode',
+        },
     ];
 }
 exports.GetVariableDefinitions = GetVariableDefinitions;
@@ -99,7 +103,7 @@ function formatTime(seconds) {
     return `${sign}${minutes}:${secs.toString().padStart(2, '0')}`;
 }
 function GetVariableValues(status) {
-    var _a, _b, _c;
+    var _a, _b, _c, _d;
     const timerARemaining = status.timerA.duration - status.timerA.currentTime;
     const timerBRemaining = status.timerB.duration - status.timerB.currentTime;
     return {
@@ -125,6 +129,7 @@ function GetVariableValues(status) {
         timer_visible: ((_c = status.timerVisible) !== null && _c !== void 0 ? _c : true).toString(),
         message_is_live: status.messageIsLive.toString(),
         live_message: status.liveMessage,
+        timer_mode: (_d = status.layout) !== null && _d !== void 0 ? _d : '',
     };
 }
 exports.GetVariableValues = GetVariableValues;

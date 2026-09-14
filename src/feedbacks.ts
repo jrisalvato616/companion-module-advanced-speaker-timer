@@ -1,5 +1,6 @@
 import { CompanionFeedbackDefinitions, CompanionFeedbackInfo, combineRgb } from '@companion-module/base'
 import { AdvancedSpeakerTimerInstance } from './index'
+import { TIMER_MODE_CHOICES, normalizeTimerMode } from './timerModes'
 
 export function GetFeedbacksList(instance: AdvancedSpeakerTimerInstance): CompanionFeedbackDefinitions {
     return {
@@ -183,6 +184,28 @@ export function GetFeedbacksList(instance: AdvancedSpeakerTimerInstance): Compan
             callback: (feedback: CompanionFeedbackInfo): boolean => {
                 const status = instance.getAppStatus()
                 return status?.messageIsLive === true
+            },
+        },
+        timer_mode: {
+            type: 'boolean',
+            name: 'Timer Mode Selected',
+            description: 'Changes style while the app is in the chosen timer mode',
+            defaultStyle: {
+                bgcolor: combineRgb(0, 122, 255),
+                color: combineRgb(255, 255, 255),
+            },
+            options: [
+                {
+                    id: 'layout',
+                    type: 'dropdown',
+                    label: 'Timer Mode',
+                    default: 'Single Timer',
+                    choices: TIMER_MODE_CHOICES,
+                },
+            ],
+            callback: (feedback: CompanionFeedbackInfo): boolean => {
+                const status = instance.getAppStatus()
+                return status?.layout === normalizeTimerMode(feedback.options.layout)
             },
         },
     }

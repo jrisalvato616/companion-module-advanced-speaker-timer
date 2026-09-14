@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.GetActionsList = void 0;
+const timerModes_1 = require("./timerModes");
 function GetActionsList(instance) {
     var _a, _b, _c, _d, _e, _f;
     const timerPresetChoices = instance.getTimerPresets().map((p) => ({ id: p.id, label: p.name }));
@@ -287,25 +288,22 @@ function GetActionsList(instance) {
             },
         },
         set_layout: {
-            name: 'Set Layout',
-            description: 'Switch the display layout',
+            name: 'Set Timer Mode',
+            description: 'Switch between Single Timer, Dual Timers, Clock Only and Clock and Timer',
             options: [
                 {
                     id: 'layout',
                     type: 'dropdown',
-                    label: 'Layout',
+                    label: 'Timer Mode',
                     default: 'Single Timer',
-                    choices: [
-                        { id: 'Single Timer', label: 'Single Timer' },
-                        { id: 'Dual Timers', label: 'Dual Timers' },
-                        { id: 'Clock Only', label: 'Clock Only' },
-                        { id: 'Clock and Timer', label: 'Clock and Timer' },
-                    ],
+                    choices: timerModes_1.TIMER_MODE_CHOICES,
                 },
             ],
             callback: (event) => {
-                const layout = String(event.options.layout);
+                const layout = (0, timerModes_1.normalizeTimerMode)(event.options.layout);
                 instance.sendCommand({ action: 'setLayout', layout });
+                // Light the matching mode button now rather than on the next poll.
+                instance.requestStatus();
             },
         },
         request_status: {

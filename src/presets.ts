@@ -1,5 +1,6 @@
 import { CompanionPresetDefinitions, combineRgb } from '@companion-module/base'
 import { AdvancedSpeakerTimerInstance } from './index'
+import { TIMER_MODE_CHOICES } from './timerModes'
 
 const BLACK = combineRgb(0, 0, 0)
 const WHITE = combineRgb(255, 255, 255)
@@ -116,6 +117,25 @@ export function GetPresetList(instance: AdvancedSpeakerTimerInstance): Companion
             style: { text: `-1m\n${timer}`, size: '18', color: WHITE, bgcolor: DARK },
             steps: [{ down: [{ actionId: `sub_1m_timer_${lower}`, options: {} }], up: [] }],
             feedbacks: [],
+        }
+    }
+
+    // One button per timer mode, lit while that mode is selected.
+    for (const mode of TIMER_MODE_CHOICES) {
+        const key = String(mode.id).toLowerCase().replace(/[^a-z]+/g, '_')
+        presets[`timer_mode_${key}`] = {
+            type: 'button',
+            category: 'Timer Mode',
+            name: `Timer mode: ${mode.label}`,
+            style: { text: mode.label, size: '14', color: WHITE, bgcolor: DARK },
+            steps: [{ down: [{ actionId: 'set_layout', options: { layout: mode.id } }], up: [] }],
+            feedbacks: [
+                {
+                    feedbackId: 'timer_mode',
+                    options: { layout: mode.id },
+                    style: { bgcolor: BLUE, color: WHITE },
+                },
+            ],
         }
     }
 
