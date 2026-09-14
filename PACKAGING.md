@@ -86,6 +86,12 @@ Both were real bugs here, and neither shows up in developer mode:
 
 ## Bumping the version
 
-Update `version` in **both** `package.json` and `companion/manifest.json`, then
-re-run `npm run package`. Companion uses the manifest version to decide whether
-an installed module is being upgraded.
+The module uses the same version number as the app (app 1.5.1 ships with
+module 1.5.1), so it's obvious which module goes with which app. Update
+`version` in **both** `package.json` and `companion/manifest.json` whenever
+the app's `MARKETING_VERSION` changes, then re-run `npm run package`.
+`scripts/make-release.sh` refuses to build if the numbers differ.
+
+Companion uses the manifest version to decide whether an installed module is
+being upgraded, so it may offer an upgrade with no module changes. That's
+harmless.
