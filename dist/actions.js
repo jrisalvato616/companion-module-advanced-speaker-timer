@@ -304,6 +304,72 @@ function GetActionsList(instance) {
                 instance.sendCommand({ action: 'setLayout', layout });
             },
         },
+        select_next_timer_preset: {
+            name: 'Highlight Next Timer Preset',
+            description: 'Scroll the highlighted timer preset (for a rotary)',
+            options: [],
+            callback: () => {
+                instance.moveTimerPresetHighlight(1);
+            },
+        },
+        select_previous_timer_preset: {
+            name: 'Highlight Previous Timer Preset',
+            description: 'Scroll the highlighted timer preset (for a rotary)',
+            options: [],
+            callback: () => {
+                instance.moveTimerPresetHighlight(-1);
+            },
+        },
+        recall_highlighted_timer_preset: {
+            name: 'Load Highlighted Timer Preset',
+            description: 'Load the highlighted preset into a timer (press the rotary)',
+            options: [
+                {
+                    id: 'timer',
+                    type: 'dropdown',
+                    label: 'Timer',
+                    default: 'A',
+                    choices: [
+                        { id: 'A', label: 'Timer A' },
+                        { id: 'B', label: 'Timer B' },
+                    ],
+                },
+            ],
+            callback: (event) => {
+                const preset = instance.highlightedTimerPresetInfo();
+                if (!preset)
+                    return;
+                const timer = String(event.options.timer) === 'B' ? 'B' : 'A';
+                instance.sendCommand({ action: 'recallTimerPreset', timer, presetId: preset.id });
+            },
+        },
+        select_next_message_preset: {
+            name: 'Highlight Next Message Preset',
+            description: 'Scroll the highlighted message preset (for a rotary)',
+            options: [],
+            callback: () => {
+                instance.moveMessagePresetHighlight(1);
+            },
+        },
+        select_previous_message_preset: {
+            name: 'Highlight Previous Message Preset',
+            description: 'Scroll the highlighted message preset (for a rotary)',
+            options: [],
+            callback: () => {
+                instance.moveMessagePresetHighlight(-1);
+            },
+        },
+        recall_highlighted_message_preset: {
+            name: 'Load Highlighted Message Preset',
+            description: 'Load the highlighted message preset (press the rotary)',
+            options: [],
+            callback: () => {
+                const preset = instance.highlightedMessagePresetInfo();
+                if (!preset)
+                    return;
+                instance.sendCommand({ action: 'recallMessagePreset', presetId: preset.id });
+            },
+        },
         request_status: {
             name: 'Request Status Update',
             description: 'Request current status from the app',

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.GetVariableValues = exports.GetVariableDefinitions = void 0;
+exports.GetVariableValues = exports.formatTime = exports.GetVariableDefinitions = void 0;
 function GetVariableDefinitions() {
     return [
         {
@@ -87,6 +87,27 @@ function GetVariableDefinitions() {
             variableId: 'timer_mode',
             name: 'Timer Mode',
         },
+        // For scrolling presets with a rotary: what's currently highlighted.
+        {
+            variableId: 'selected_timer_preset',
+            name: 'Highlighted Timer Preset (name)',
+        },
+        {
+            variableId: 'selected_timer_preset_duration',
+            name: 'Highlighted Timer Preset (duration)',
+        },
+        {
+            variableId: 'selected_timer_preset_number',
+            name: 'Highlighted Timer Preset (e.g. 2/7)',
+        },
+        {
+            variableId: 'selected_message_preset',
+            name: 'Highlighted Message Preset (name)',
+        },
+        {
+            variableId: 'selected_message_preset_number',
+            name: 'Highlighted Message Preset (e.g. 2/5)',
+        },
     ];
 }
 exports.GetVariableDefinitions = GetVariableDefinitions;
@@ -102,6 +123,7 @@ function formatTime(seconds) {
     }
     return `${sign}${minutes}:${secs.toString().padStart(2, '0')}`;
 }
+exports.formatTime = formatTime;
 function GetVariableValues(status) {
     var _a, _b, _c, _d;
     const timerARemaining = status.timerA.duration - status.timerA.currentTime;

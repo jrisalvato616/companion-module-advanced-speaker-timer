@@ -108,11 +108,32 @@ export function GetVariableDefinitions(): CompanionVariableDefinition[] {
             variableId: 'timer_mode',
             name: 'Timer Mode',
         },
+        // For scrolling presets with a rotary: what's currently highlighted.
+        {
+            variableId: 'selected_timer_preset',
+            name: 'Highlighted Timer Preset (name)',
+        },
+        {
+            variableId: 'selected_timer_preset_duration',
+            name: 'Highlighted Timer Preset (duration)',
+        },
+        {
+            variableId: 'selected_timer_preset_number',
+            name: 'Highlighted Timer Preset (e.g. 2/7)',
+        },
+        {
+            variableId: 'selected_message_preset',
+            name: 'Highlighted Message Preset (name)',
+        },
+        {
+            variableId: 'selected_message_preset_number',
+            name: 'Highlighted Message Preset (e.g. 2/5)',
+        },
     ]
 }
 
 /** Matches the app: H:MM:SS past an hour, otherwise M:SS. */
-function formatTime(seconds: number): string {
+export function formatTime(seconds: number): string {
     const sign = seconds < 0 ? '-' : ''
     const absSeconds = Math.abs(seconds)
     const hours = Math.floor(absSeconds / 3600)

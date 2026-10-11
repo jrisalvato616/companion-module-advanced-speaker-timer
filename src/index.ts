@@ -1,10 +1,11 @@
 import { InstanceBase, InstanceStatus, SomeCompanionConfigField, runEntrypoint } from '@companion-module/base'
 import { GetActionsList } from './actions'
 import { GetFeedbacksList } from './feedbacks'
-import { GetVariableDefinitions, GetVariableValues } from './variables'
+import { GetVariableDefinitions, GetVariableValues, formatTime } from './variables'
 import { SpeakerTimerConfig, GetConfigFields } from './config'
 import { GetPresetList } from './presets'
 import { Socket } from 'net'
+import { PresetInfo, PresetSelection } from './selection'
 
 interface CompanionCommand {
     action: string
@@ -19,17 +20,14 @@ interface CompanionCommand {
 export /** Commands that only read; everything else changes the app. */
 const READ_ONLY_ACTIONS = new Set(['status', 'getTimerPresets', 'getMessagePresets'])
 
-interface PresetInfo {
-    id: string
-    name: string
-}
+export type { PresetInfo } from './selection'
 
 interface CompanionResponse {
     status?: string
     /** Present on preset lists and on broadcast notifications. */
     action?: string
     data?: any
-    presets?: Array<{ id: string; name: string }>
+    presets?: Array<{ id: string; name: string; duration?: number }>
 }
 
 interface TimerStatus {
@@ -66,8 +64,9 @@ export class AdvancedSpeakerTimerInstance extends InstanceBase<SpeakerTimerConfi
     private appStatus: AppStatus | null = null
     /** When the app last told us its state, pushed or polled. */
     private lastStatusAt = 0
-    private timerPresets: PresetInfo[] = []
-    private messagePresets: PresetInfo[] = []
+    // The app's presets, and what a rotary has scrolled to in each list.
+    private timerPresets = new PresetSelection()
+    private messagePresets = new PresetSelection()
     public config!: SpeakerTimerConfig
 
     constructor(internal: unknown) {
@@ -82,6 +81,7 @@ export class AdvancedSpeakerTimerInstance extends InstanceBase<SpeakerTimerConfi
         this.setFeedbackDefinitions(GetFeedbacksList(this))
         this.setVariableDefinitions(GetVariableDefinitions())
         this.setPresetDefinitions(GetPresetList(this))
+        this.updateHighlightVariables()
 
         this.initConnection()
     }
@@ -226,13 +226,15 @@ export class AdvancedSpeakerTimerInstance extends InstanceBase<SpeakerTimerConfi
     private handleResponse(response: CompanionResponse): void {
         // Preset lists arrive as a top-level action rather than under `data`.
         if (response.action === 'timerPresets' && Array.isArray(response.presets)) {
-            this.timerPresets = response.presets.map((p) => ({ id: p.id, name: p.name }))
+            this.timerPresets.setItems(response.presets.map((p) => ({ id: p.id, name: p.name, duration: p.duration })))
+            this.updateHighlightVariables()
             this.setActionDefinitions(GetActionsList(this))
             this.setPresetDefinitions(GetPresetList(this))
             return
         }
         if (response.action === 'messagePresets' && Array.isArray(response.presets)) {
-            this.messagePresets = response.presets.map((p) => ({ id: p.id, name: p.name }))
+            this.messagePresets.setItems(response.presets.map((p) => ({ id: p.id, name: p.name })))
+            this.updateHighlightVariables()
             this.setActionDefinitions(GetActionsList(this))
             this.setPresetDefinitions(GetPresetList(this))
             return
@@ -260,12 +262,46 @@ export class AdvancedSpeakerTimerInstance extends InstanceBase<SpeakerTimerConfi
         this.sendCommand({ action: 'getMessagePresets' })
     }
 
+    // MARK: Scrolling presets with a rotary
+
+    /** Scrolls the highlighted timer preset, wrapping at both ends. */
+    public moveTimerPresetHighlight(step: number): void {
+        this.timerPresets.move(step)
+        this.updateHighlightVariables()
+    }
+
+    public moveMessagePresetHighlight(step: number): void {
+        this.messagePresets.move(step)
+        this.updateHighlightVariables()
+    }
+
+    public highlightedTimerPresetInfo(): PresetInfo | undefined {
+        return this.timerPresets.current
+    }
+
+    public highlightedMessagePresetInfo(): PresetInfo | undefined {
+        return this.messagePresets.current
+    }
+
+    /** Feeds the little display above a rotary. */
+    private updateHighlightVariables(): void {
+        const timer = this.timerPresets.current
+        const message = this.messagePresets.current
+        this.setVariableValues({
+            selected_timer_preset: timer?.name ?? '—',
+            selected_timer_preset_duration: timer?.duration === undefined ? '' : formatTime(timer.duration),
+            selected_timer_preset_number: this.timerPresets.position,
+            selected_message_preset: message?.name ?? '—',
+            selected_message_preset_number: this.messagePresets.position,
+        })
+    }
+
     public getTimerPresets(): PresetInfo[] {
-        return this.timerPresets
+        return this.timerPresets.all
     }
 
     public getMessagePresets(): PresetInfo[] {
-        return this.messagePresets
+        return this.messagePresets.all
     }
 
     private updateVariables(): void {

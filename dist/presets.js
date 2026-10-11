@@ -130,6 +130,51 @@ function GetPresetList(instance) {
             ],
         };
     }
+    // Rotary knobs (Stream Deck +): turn to scroll presets, press to load.
+    for (const timer of ['A', 'B']) {
+        presets[`timer_preset_knob_${timer.toLowerCase()}`] = {
+            type: 'button',
+            category: 'Timer presets',
+            name: `Knob: scroll presets, press to load into Timer ${timer}`,
+            options: { rotaryActions: true },
+            style: {
+                text: `$(${instance.label}:selected_timer_preset)\n$(${instance.label}:selected_timer_preset_number) → ${timer}`,
+                size: '14',
+                color: WHITE,
+                bgcolor: DARK,
+            },
+            steps: [
+                {
+                    down: [{ actionId: 'recall_highlighted_timer_preset', options: { timer } }],
+                    up: [],
+                    rotate_left: [{ actionId: 'select_previous_timer_preset', options: {} }],
+                    rotate_right: [{ actionId: 'select_next_timer_preset', options: {} }],
+                },
+            ],
+            feedbacks: [],
+        };
+    }
+    presets['message_preset_knob'] = {
+        type: 'button',
+        category: 'Messages',
+        name: 'Knob: scroll message presets, press to load',
+        options: { rotaryActions: true },
+        style: {
+            text: `$(${instance.label}:selected_message_preset)\n$(${instance.label}:selected_message_preset_number)`,
+            size: '14',
+            color: WHITE,
+            bgcolor: DARK,
+        },
+        steps: [
+            {
+                down: [{ actionId: 'recall_highlighted_message_preset', options: {} }],
+                up: [],
+                rotate_left: [{ actionId: 'select_previous_message_preset', options: {} }],
+                rotate_right: [{ actionId: 'select_next_message_preset', options: {} }],
+            },
+        ],
+        feedbacks: [],
+    };
     // Output control
     presets['toggle_output'] = {
         type: 'button',

@@ -8,6 +8,7 @@ const variables_1 = require("./variables");
 const config_1 = require("./config");
 const presets_1 = require("./presets");
 const net_1 = require("net");
+const selection_1 = require("./selection");
 exports.READ_ONLY_ACTIONS = new Set(['status', 'getTimerPresets', 'getMessagePresets']);
 class AdvancedSpeakerTimerInstance extends base_1.InstanceBase {
     constructor(internal) {
@@ -20,8 +21,9 @@ class AdvancedSpeakerTimerInstance extends base_1.InstanceBase {
         this.appStatus = null;
         /** When the app last told us its state, pushed or polled. */
         this.lastStatusAt = 0;
-        this.timerPresets = [];
-        this.messagePresets = [];
+        // The app's presets, and what a rotary has scrolled to in each list.
+        this.timerPresets = new selection_1.PresetSelection();
+        this.messagePresets = new selection_1.PresetSelection();
     }
     async init(config) {
         this.config = config;
@@ -30,6 +32,7 @@ class AdvancedSpeakerTimerInstance extends base_1.InstanceBase {
         this.setFeedbackDefinitions((0, feedbacks_1.GetFeedbacksList)(this));
         this.setVariableDefinitions((0, variables_1.GetVariableDefinitions)());
         this.setPresetDefinitions((0, presets_1.GetPresetList)(this));
+        this.updateHighlightVariables();
         this.initConnection();
     }
     async destroy() {
@@ -156,13 +159,15 @@ class AdvancedSpeakerTimerInstance extends base_1.InstanceBase {
         var _a, _b;
         // Preset lists arrive as a top-level action rather than under `data`.
         if (response.action === 'timerPresets' && Array.isArray(response.presets)) {
-            this.timerPresets = response.presets.map((p) => ({ id: p.id, name: p.name }));
+            this.timerPresets.setItems(response.presets.map((p) => ({ id: p.id, name: p.name, duration: p.duration })));
+            this.updateHighlightVariables();
             this.setActionDefinitions((0, actions_1.GetActionsList)(this));
             this.setPresetDefinitions((0, presets_1.GetPresetList)(this));
             return;
         }
         if (response.action === 'messagePresets' && Array.isArray(response.presets)) {
-            this.messagePresets = response.presets.map((p) => ({ id: p.id, name: p.name }));
+            this.messagePresets.setItems(response.presets.map((p) => ({ id: p.id, name: p.name })));
+            this.updateHighlightVariables();
             this.setActionDefinitions((0, actions_1.GetActionsList)(this));
             this.setPresetDefinitions((0, presets_1.GetPresetList)(this));
             return;
@@ -187,11 +192,40 @@ class AdvancedSpeakerTimerInstance extends base_1.InstanceBase {
         this.sendCommand({ action: 'getTimerPresets', timer: 'A' });
         this.sendCommand({ action: 'getMessagePresets' });
     }
+    // MARK: Scrolling presets with a rotary
+    /** Scrolls the highlighted timer preset, wrapping at both ends. */
+    moveTimerPresetHighlight(step) {
+        this.timerPresets.move(step);
+        this.updateHighlightVariables();
+    }
+    moveMessagePresetHighlight(step) {
+        this.messagePresets.move(step);
+        this.updateHighlightVariables();
+    }
+    highlightedTimerPresetInfo() {
+        return this.timerPresets.current;
+    }
+    highlightedMessagePresetInfo() {
+        return this.messagePresets.current;
+    }
+    /** Feeds the little display above a rotary. */
+    updateHighlightVariables() {
+        var _a, _b;
+        const timer = this.timerPresets.current;
+        const message = this.messagePresets.current;
+        this.setVariableValues({
+            selected_timer_preset: (_a = timer === null || timer === void 0 ? void 0 : timer.name) !== null && _a !== void 0 ? _a : '—',
+            selected_timer_preset_duration: (timer === null || timer === void 0 ? void 0 : timer.duration) === undefined ? '' : (0, variables_1.formatTime)(timer.duration),
+            selected_timer_preset_number: this.timerPresets.position,
+            selected_message_preset: (_b = message === null || message === void 0 ? void 0 : message.name) !== null && _b !== void 0 ? _b : '—',
+            selected_message_preset_number: this.messagePresets.position,
+        });
+    }
     getTimerPresets() {
-        return this.timerPresets;
+        return this.timerPresets.all;
     }
     getMessagePresets() {
-        return this.messagePresets;
+        return this.messagePresets.all;
     }
     updateVariables() {
         if (!this.appStatus)
