@@ -16,7 +16,10 @@ interface CompanionCommand {
     send?: boolean
 }
 
-export interface PresetInfo {
+export /** Commands that only read; everything else changes the app. */
+const READ_ONLY_ACTIONS = new Set(['status', 'getTimerPresets', 'getMessagePresets'])
+
+interface PresetInfo {
     id: string
     name: string
 }
@@ -61,6 +64,8 @@ export class AdvancedSpeakerTimerInstance extends InstanceBase<SpeakerTimerConfi
     private rxBuffer = ''
     private connected = false
     private appStatus: AppStatus | null = null
+    /** When the app last told us its state, pushed or polled. */
+    private lastStatusAt = 0
     private timerPresets: PresetInfo[] = []
     private messagePresets: PresetInfo[] = []
     public config!: SpeakerTimerConfig
@@ -186,11 +191,14 @@ export class AdvancedSpeakerTimerInstance extends InstanceBase<SpeakerTimerConfi
         }
     }
 
-    /** Poll once a second so the countdown variables stay current. */
+    /**
+     * A fallback: apps from 1.6.1 push their status as it changes, so this only
+     * asks when nothing has arrived recently (an older app, or an idle one).
+     */
     private startStatusPolling(): void {
         this.stopStatusPolling()
         this.statusPollTimer = setInterval(() => {
-            if (this.connected) {
+            if (this.connected && Date.now() - this.lastStatusAt > 1500) {
                 this.sendCommand({ action: 'status' })
             }
         }, 1000)
@@ -239,6 +247,7 @@ export class AdvancedSpeakerTimerInstance extends InstanceBase<SpeakerTimerConfi
         if (response.status === 'ok' && response.data) {
             // Check if this is a status response
             if (response.data.timerA && response.data.timerB) {
+                this.lastStatusAt = Date.now()
                 this.appStatus = response.data as AppStatus
                 this.updateVariables()
                 this.checkFeedbacks()
@@ -273,8 +282,13 @@ export class AdvancedSpeakerTimerInstance extends InstanceBase<SpeakerTimerConfi
         }
 
         try {
-            const jsonString = JSON.stringify(command) + '\n'
-            this.socket.write(jsonString)
+            this.socket.write(JSON.stringify(command) + '\n')
+            // A press should show on the button now, not on the next poll up to
+            // a second later. The app answers commands in order, so this status
+            // reflects the change. Written directly to avoid recursing here.
+            if (!READ_ONLY_ACTIONS.has(command.action)) {
+                this.socket.write(JSON.stringify({ action: 'status' }) + '\n')
+            }
         } catch (error) {
             this.log('error', `Failed to send command: ${error}`)
         }

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.AdvancedSpeakerTimerInstance = void 0;
+exports.AdvancedSpeakerTimerInstance = exports.READ_ONLY_ACTIONS = void 0;
 const base_1 = require("@companion-module/base");
 const actions_1 = require("./actions");
 const feedbacks_1 = require("./feedbacks");
@@ -8,6 +8,7 @@ const variables_1 = require("./variables");
 const config_1 = require("./config");
 const presets_1 = require("./presets");
 const net_1 = require("net");
+exports.READ_ONLY_ACTIONS = new Set(['status', 'getTimerPresets', 'getMessagePresets']);
 class AdvancedSpeakerTimerInstance extends base_1.InstanceBase {
     constructor(internal) {
         super(internal);
@@ -17,6 +18,8 @@ class AdvancedSpeakerTimerInstance extends base_1.InstanceBase {
         this.rxBuffer = '';
         this.connected = false;
         this.appStatus = null;
+        /** When the app last told us its state, pushed or polled. */
+        this.lastStatusAt = 0;
         this.timerPresets = [];
         this.messagePresets = [];
     }
@@ -121,11 +124,14 @@ class AdvancedSpeakerTimerInstance extends base_1.InstanceBase {
             this.scheduleReconnect();
         }
     }
-    /** Poll once a second so the countdown variables stay current. */
+    /**
+     * A fallback: apps from 1.6.1 push their status as it changes, so this only
+     * asks when nothing has arrived recently (an older app, or an idle one).
+     */
     startStatusPolling() {
         this.stopStatusPolling();
         this.statusPollTimer = setInterval(() => {
-            if (this.connected) {
+            if (this.connected && Date.now() - this.lastStatusAt > 1500) {
                 this.sendCommand({ action: 'status' });
             }
         }, 1000);
@@ -170,6 +176,7 @@ class AdvancedSpeakerTimerInstance extends base_1.InstanceBase {
         if (response.status === 'ok' && response.data) {
             // Check if this is a status response
             if (response.data.timerA && response.data.timerB) {
+                this.lastStatusAt = Date.now();
                 this.appStatus = response.data;
                 this.updateVariables();
                 this.checkFeedbacks();
@@ -198,8 +205,13 @@ class AdvancedSpeakerTimerInstance extends base_1.InstanceBase {
             return;
         }
         try {
-            const jsonString = JSON.stringify(command) + '\n';
-            this.socket.write(jsonString);
+            this.socket.write(JSON.stringify(command) + '\n');
+            // A press should show on the button now, not on the next poll up to
+            // a second later. The app answers commands in order, so this status
+            // reflects the change. Written directly to avoid recursing here.
+            if (!exports.READ_ONLY_ACTIONS.has(command.action)) {
+                this.socket.write(JSON.stringify({ action: 'status' }) + '\n');
+            }
         }
         catch (error) {
             this.log('error', `Failed to send command: ${error}`);

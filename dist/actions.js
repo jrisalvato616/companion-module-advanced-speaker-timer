@@ -302,8 +302,6 @@ function GetActionsList(instance) {
             callback: (event) => {
                 const layout = (0, timerModes_1.normalizeTimerMode)(event.options.layout);
                 instance.sendCommand({ action: 'setLayout', layout });
-                // Light the matching mode button now rather than on the next poll.
-                instance.requestStatus();
             },
         },
         request_status: {

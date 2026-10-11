@@ -302,8 +302,6 @@ export function GetActionsList(instance: AdvancedSpeakerTimerInstance): Companio
             callback: (event: CompanionActionEvent) => {
                 const layout = normalizeTimerMode(event.options.layout)
                 instance.sendCommand({ action: 'setLayout', layout })
-                // Light the matching mode button now rather than on the next poll.
-                instance.requestStatus()
             },
         },
         request_status: {
