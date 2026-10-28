@@ -5,6 +5,14 @@ const base_1 = require("@companion-module/base");
 const timerModes_1 = require("./timerModes");
 function GetFeedbacksList(instance) {
     return {
+        connection_unavailable: {
+            type: 'boolean',
+            name: 'Timer Connection Unavailable',
+            description: 'Changes style while disconnected or without recent timer status',
+            defaultStyle: { bgcolor: (0, base_1.combineRgb)(80, 80, 80), color: (0, base_1.combineRgb)(255, 255, 255) },
+            options: [],
+            callback: () => !instance.hasCurrentStatus(),
+        },
         timer_a_running: {
             type: 'boolean',
             name: 'Timer A Running',
@@ -52,6 +60,10 @@ function GetFeedbacksList(instance) {
                 // The app reports this directly; fall back for older versions.
                 if (typeof timer.isWarning === 'boolean')
                     return timer.isWarning;
+                // Legacy apps lack isWarning; match the app's warning rules,
+                // including its suppression while paused/ready or counting up.
+                if (timer.state !== 'running' || timer.mode === 'Count Up')
+                    return false;
                 const timeLeft = timer.duration - timer.currentTime;
                 return timeLeft <= timer.warningTime && timeLeft > 0;
             },
@@ -124,6 +136,10 @@ function GetFeedbacksList(instance) {
                 // The app reports this directly; fall back for older versions.
                 if (typeof timer.isWarning === 'boolean')
                     return timer.isWarning;
+                // Legacy apps lack isWarning; match the app's warning rules,
+                // including its suppression while paused/ready or counting up.
+                if (timer.state !== 'running' || timer.mode === 'Count Up')
+                    return false;
                 const timeLeft = timer.duration - timer.currentTime;
                 return timeLeft <= timer.warningTime && timeLeft > 0;
             },
@@ -149,6 +165,34 @@ function GetFeedbacksList(instance) {
                 return timer.state === 'overtime';
             },
         },
+        timer_state: {
+            type: 'boolean',
+            name: 'Timer State',
+            description: 'Changes style when the selected timer is ready, running, paused, finished, or stopped with overtime text',
+            defaultStyle: { bgcolor: (0, base_1.combineRgb)(0, 122, 255), color: (0, base_1.combineRgb)(255, 255, 255) },
+            options: [
+                {
+                    id: 'timer', type: 'dropdown', label: 'Timer', default: 'A',
+                    choices: [{ id: 'A', label: 'Timer A' }, { id: 'B', label: 'Timer B' }],
+                },
+                {
+                    id: 'state', type: 'dropdown', label: 'State', default: 'ready',
+                    choices: [
+                        { id: 'ready', label: 'Ready / Reset' },
+                        { id: 'running', label: 'Running (including counting overtime)' },
+                        { id: 'paused', label: 'Paused' },
+                        { id: 'finished', label: 'Finished' },
+                        { id: 'overtime', label: 'Stopped with overtime text' },
+                    ],
+                },
+            ],
+            callback: (feedback) => {
+                const status = instance.getAppStatus();
+                const timer = feedback.options.timer === 'A' ? status === null || status === void 0 ? void 0 : status.timerA
+                    : feedback.options.timer === 'B' ? status === null || status === void 0 ? void 0 : status.timerB : undefined;
+                return timer !== undefined && timer.state === feedback.options.state;
+            },
+        },
         display_visible: {
             type: 'boolean',
             name: 'Output Enabled',
@@ -165,8 +209,8 @@ function GetFeedbacksList(instance) {
         },
         timer_visible: {
             type: 'boolean',
-            name: 'Timer Visible',
-            description: 'Changes style when the timer is showing on the output',
+            name: 'Timer Display Enabled',
+            description: 'Changes style when timer visibility is enabled, independently of the output window',
             defaultStyle: {
                 bgcolor: (0, base_1.combineRgb)(0, 128, 255),
                 color: (0, base_1.combineRgb)(255, 255, 255),
@@ -193,8 +237,8 @@ function GetFeedbacksList(instance) {
         },
         timer_mode: {
             type: 'boolean',
-            name: 'Timer Mode Selected',
-            description: 'Changes style while the app is in the chosen timer mode',
+            name: 'Output Layout Selected',
+            description: 'Changes style while the app uses the chosen output layout',
             defaultStyle: {
                 bgcolor: (0, base_1.combineRgb)(0, 122, 255),
                 color: (0, base_1.combineRgb)(255, 255, 255),
@@ -203,14 +247,14 @@ function GetFeedbacksList(instance) {
                 {
                     id: 'layout',
                     type: 'dropdown',
-                    label: 'Timer Mode',
+                    label: 'Output Layout',
                     default: 'Single Timer',
                     choices: timerModes_1.TIMER_MODE_CHOICES,
                 },
             ],
             callback: (feedback) => {
                 const status = instance.getAppStatus();
-                return (status === null || status === void 0 ? void 0 : status.layout) === (0, timerModes_1.normalizeTimerMode)(feedback.options.layout);
+                return (status === null || status === void 0 ? void 0 : status.layout) !== undefined && (0, timerModes_1.normalizeTimerMode)(status.layout) === (0, timerModes_1.normalizeTimerMode)(feedback.options.layout);
             },
         },
     };

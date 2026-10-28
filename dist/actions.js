@@ -6,7 +6,45 @@ function GetActionsList(instance) {
     var _a, _b, _c, _d, _e, _f;
     const timerPresetChoices = instance.getTimerPresets().map((p) => ({ id: p.id, label: p.name }));
     const messagePresetChoices = instance.getMessagePresets().map((p) => ({ id: p.id, label: p.name }));
+    // Companion's field limits are UI hints; imported/edited buttons can still
+    // contain missing, fractional or non-finite values that the app cannot parse.
+    const adjustTimer = (timer, value) => {
+        const seconds = typeof value === 'number' || (typeof value === 'string' && value.trim() !== '')
+            ? Number(value) : NaN;
+        if (!Number.isInteger(seconds) || seconds < -3600 || seconds > 3600) {
+            instance.log('warn', 'Timer adjustment must be a whole number of seconds between -3600 and 3600');
+            return;
+        }
+        const status = instance.getAppStatus();
+        const mode = timer === 'A' ? status === null || status === void 0 ? void 0 : status.timerA.mode : status === null || status === void 0 ? void 0 : status.timerB.mode;
+        if (mode === 'Count Up') {
+            instance.log('warn', 'Time adjustments apply to countdown timers, not Count Up elapsed time');
+            return;
+        }
+        instance.sendCommand({ action: 'adjust', timer, value: String(seconds) });
+    };
+    const recallPreset = (value, timer) => {
+        if (typeof value !== 'string' || value.trim() === '') {
+            instance.log('warn', 'Choose a preset before recalling it');
+            return;
+        }
+        instance.sendCommand(timer
+            ? { action: 'recallTimerPreset', timer, presetId: value }
+            : { action: 'recallMessagePreset', presetId: value });
+    };
     return {
+        toggle_timer_a: {
+            name: 'Start / Pause Timer A',
+            description: 'Toggle Timer A using its current state',
+            options: [],
+            callback: () => instance.toggleTimer('A'),
+        },
+        toggle_timer_b: {
+            name: 'Start / Pause Timer B',
+            description: 'Toggle Timer B using its current state',
+            options: [],
+            callback: () => instance.toggleTimer('B'),
+        },
         start_timer_a: {
             name: 'Start Timer A',
             description: 'Start Timer A',
@@ -56,8 +94,8 @@ function GetActionsList(instance) {
             },
         },
         adjust_timer_a: {
-            name: 'Adjust Timer A',
-            description: 'Add or subtract time from Timer A',
+            name: 'Adjust Timer A Countdown',
+            description: 'Adjust Timer A countdown duration or clock deadline. Count Up elapsed time is unchanged.',
             options: [
                 {
                     id: 'seconds',
@@ -70,13 +108,12 @@ function GetActionsList(instance) {
                 },
             ],
             callback: (event) => {
-                const seconds = Number(event.options.seconds);
-                instance.sendCommand({ action: 'adjust', timer: 'A', value: seconds.toString() });
+                adjustTimer('A', event.options.seconds);
             },
         },
         adjust_timer_b: {
-            name: 'Adjust Timer B',
-            description: 'Add or subtract time from Timer B',
+            name: 'Adjust Timer B Countdown',
+            description: 'Adjust Timer B countdown duration or clock deadline. Count Up elapsed time is unchanged.',
             options: [
                 {
                     id: 'seconds',
@@ -89,72 +126,71 @@ function GetActionsList(instance) {
                 },
             ],
             callback: (event) => {
-                const seconds = Number(event.options.seconds);
-                instance.sendCommand({ action: 'adjust', timer: 'B', value: seconds.toString() });
+                adjustTimer('B', event.options.seconds);
             },
         },
         add_30s_timer_a: {
             name: 'Add 30s to Timer A',
-            description: 'Add 30 seconds to Timer A',
+            description: 'Add 30 seconds to Timer A countdown duration or deadline',
             options: [],
             callback: (event) => {
-                instance.sendCommand({ action: 'adjust', timer: 'A', value: '30' });
+                adjustTimer('A', 30);
             },
         },
         add_1m_timer_a: {
             name: 'Add 1min to Timer A',
-            description: 'Add 1 minute to Timer A',
+            description: 'Add 1 minute to Timer A countdown duration or deadline',
             options: [],
             callback: (event) => {
-                instance.sendCommand({ action: 'adjust', timer: 'A', value: '60' });
+                adjustTimer('A', 60);
             },
         },
         sub_30s_timer_a: {
             name: 'Remove 30s from Timer A',
-            description: 'Remove 30 seconds from Timer A',
+            description: 'Remove 30 seconds from Timer A countdown duration or deadline',
             options: [],
             callback: (event) => {
-                instance.sendCommand({ action: 'adjust', timer: 'A', value: '-30' });
+                adjustTimer('A', -30);
             },
         },
         sub_1m_timer_a: {
             name: 'Remove 1min from Timer A',
-            description: 'Remove 1 minute from Timer A',
+            description: 'Remove 1 minute from Timer A countdown duration or deadline',
             options: [],
             callback: (event) => {
-                instance.sendCommand({ action: 'adjust', timer: 'A', value: '-60' });
+                adjustTimer('A', -60);
             },
         },
         add_30s_timer_b: {
             name: 'Add 30s to Timer B',
-            description: 'Add 30 seconds to Timer B',
+            description: 'Add 30 seconds to Timer B countdown duration or deadline',
             options: [],
             callback: (event) => {
-                instance.sendCommand({ action: 'adjust', timer: 'B', value: '30' });
+                adjustTimer('B', 30);
             },
         },
         add_1m_timer_b: {
             name: 'Add 1min to Timer B',
-            description: 'Add 1 minute to Timer B',
+            description: 'Add 1 minute to Timer B countdown duration or deadline',
             options: [],
             callback: (event) => {
-                instance.sendCommand({ action: 'adjust', timer: 'B', value: '60' });
+                adjustTimer('B', 60);
             },
         },
         sub_30s_timer_b: {
             name: 'Remove 30s from Timer B',
-            description: 'Remove 30 seconds from Timer B',
+            description: 'Remove 30 seconds from Timer B countdown duration or deadline',
             options: [],
             callback: (event) => {
-                instance.sendCommand({ action: 'adjust', timer: 'B', value: '-30' });
+                adjustTimer('B', -30);
             },
         },
         sub_1m_timer_b: {
             name: 'Remove 1min from Timer B',
-            description: 'Remove 1 minute from Timer B',
+            description: 'Remove 1 minute from Timer B countdown duration or deadline',
             options: [],
             callback: (event) => {
-                instance.sendCommand({ action: 'adjust', timer: 'B', value: '-60' });
+                adjustTimer('B', -60);
             },
         },
         show_display: {
@@ -198,12 +234,18 @@ function GetActionsList(instance) {
             },
         },
         toggle_timer_visible: {
-            name: 'Toggle Timer',
+            name: 'Toggle Timer Visibility',
             description: 'Show or hide the timer without taking the output down',
             options: [],
             callback: (event) => {
                 instance.sendCommand({ action: 'toggleTimerVisible' });
             },
+        },
+        send_message: {
+            name: 'Send Draft Message',
+            description: 'Send the current draft, replacing any live message. Requires the updated app.',
+            options: [],
+            callback: () => instance.sendDraftMessage(),
         },
         toggle_message: {
             name: 'Toggle Live Message',
@@ -213,15 +255,23 @@ function GetActionsList(instance) {
                 instance.sendCommand({ action: 'toggleMessage' });
             },
         },
+        hide_message: {
+            name: 'Clear Live Message',
+            description: 'Remove the message from the screen while keeping its draft text',
+            options: [],
+            callback: () => instance.sendCommand({ action: 'clearMessage' }),
+        },
         set_message: {
             name: 'Set Live Message',
-            description: 'Set the live message text',
+            description: 'Set message text. If a message is already live, the screen updates immediately.',
             options: [
                 {
                     id: 'message',
                     type: 'textinput',
                     label: 'Message text',
                     default: 'Your message here',
+                    useVariables: true,
+                    multiline: true,
                 },
                 {
                     id: 'send',
@@ -230,10 +280,13 @@ function GetActionsList(instance) {
                     default: false,
                 },
             ],
-            callback: (event) => {
-                const message = String(event.options.message);
-                const send = Boolean(event.options.send);
-                instance.sendCommand({ action: 'setMessage', message, send });
+            callback: async (event, context) => {
+                if (typeof event.options.message !== 'string') {
+                    instance.log('warn', 'Enter message text before setting the live message');
+                    return;
+                }
+                const message = await context.parseVariablesInString(event.options.message);
+                instance.sendCommand({ action: 'setMessage', message, send: event.options.send === true });
             },
         },
         recall_timer_preset_a: {
@@ -249,8 +302,7 @@ function GetActionsList(instance) {
                 },
             ],
             callback: (event) => {
-                const presetId = String(event.options.presetId);
-                instance.sendCommand({ action: 'recallTimerPreset', timer: 'A', presetId });
+                recallPreset(event.options.presetId, 'A');
             },
         },
         recall_timer_preset_b: {
@@ -266,8 +318,7 @@ function GetActionsList(instance) {
                 },
             ],
             callback: (event) => {
-                const presetId = String(event.options.presetId);
-                instance.sendCommand({ action: 'recallTimerPreset', timer: 'B', presetId });
+                recallPreset(event.options.presetId, 'B');
             },
         },
         recall_message_preset: {
@@ -283,24 +334,27 @@ function GetActionsList(instance) {
                 },
             ],
             callback: (event) => {
-                const presetId = String(event.options.presetId);
-                instance.sendCommand({ action: 'recallMessagePreset', presetId });
+                recallPreset(event.options.presetId);
             },
         },
         set_layout: {
-            name: 'Set Timer Mode',
-            description: 'Switch between Single Timer, Dual Timers, Clock Only and Clock and Timer',
+            name: 'Set Output Layout',
+            description: 'Choose the output layout; this does not change a timer’s Countdown or Count Up type',
             options: [
                 {
                     id: 'layout',
                     type: 'dropdown',
-                    label: 'Timer Mode',
+                    label: 'Output Layout',
                     default: 'Single Timer',
                     choices: timerModes_1.TIMER_MODE_CHOICES,
                 },
             ],
             callback: (event) => {
                 const layout = (0, timerModes_1.normalizeTimerMode)(event.options.layout);
+                if (!timerModes_1.TIMER_MODE_CHOICES.some(choice => choice.id === layout)) {
+                    instance.log('warn', 'Choose a valid timer layout');
+                    return;
+                }
                 instance.sendCommand({ action: 'setLayout', layout });
             },
         },

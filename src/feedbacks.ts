@@ -4,6 +4,14 @@ import { TIMER_MODE_CHOICES, normalizeTimerMode } from './timerModes'
 
 export function GetFeedbacksList(instance: AdvancedSpeakerTimerInstance): CompanionFeedbackDefinitions {
     return {
+        connection_unavailable: {
+            type: 'boolean',
+            name: 'Timer Connection Unavailable',
+            description: 'Changes style while disconnected or without recent timer status',
+            defaultStyle: { bgcolor: combineRgb(80, 80, 80), color: combineRgb(255, 255, 255) },
+            options: [],
+            callback: (): boolean => !instance.hasCurrentStatus(),
+        },
         timer_a_running: {
             type: 'boolean',
             name: 'Timer A Running',
@@ -49,6 +57,9 @@ export function GetFeedbacksList(instance: AdvancedSpeakerTimerInstance): Compan
                 // The app reports this directly; fall back for older versions.
                 if (typeof timer.isWarning === 'boolean') return timer.isWarning
 
+                // Legacy apps lack isWarning; match the app's warning rules,
+                // including its suppression while paused/ready or counting up.
+                if (timer.state !== 'running' || timer.mode === 'Count Up') return false
                 const timeLeft = timer.duration - timer.currentTime
                 return timeLeft <= timer.warningTime && timeLeft > 0
             },
@@ -119,6 +130,9 @@ export function GetFeedbacksList(instance: AdvancedSpeakerTimerInstance): Compan
                 // The app reports this directly; fall back for older versions.
                 if (typeof timer.isWarning === 'boolean') return timer.isWarning
 
+                // Legacy apps lack isWarning; match the app's warning rules,
+                // including its suppression while paused/ready or counting up.
+                if (timer.state !== 'running' || timer.mode === 'Count Up') return false
                 const timeLeft = timer.duration - timer.currentTime
                 return timeLeft <= timer.warningTime && timeLeft > 0
             },
@@ -144,6 +158,34 @@ export function GetFeedbacksList(instance: AdvancedSpeakerTimerInstance): Compan
                 return timer.state === 'overtime'
             },
         },
+        timer_state: {
+            type: 'boolean',
+            name: 'Timer State',
+            description: 'Changes style when the selected timer is ready, running, paused, finished, or stopped with overtime text',
+            defaultStyle: { bgcolor: combineRgb(0, 122, 255), color: combineRgb(255, 255, 255) },
+            options: [
+                {
+                    id: 'timer', type: 'dropdown', label: 'Timer', default: 'A',
+                    choices: [{ id: 'A', label: 'Timer A' }, { id: 'B', label: 'Timer B' }],
+                },
+                {
+                    id: 'state', type: 'dropdown', label: 'State', default: 'ready',
+                    choices: [
+                        { id: 'ready', label: 'Ready / Reset' },
+                        { id: 'running', label: 'Running (including counting overtime)' },
+                        { id: 'paused', label: 'Paused' },
+                        { id: 'finished', label: 'Finished' },
+                        { id: 'overtime', label: 'Stopped with overtime text' },
+                    ],
+                },
+            ],
+            callback: (feedback: CompanionFeedbackInfo): boolean => {
+                const status = instance.getAppStatus()
+                const timer = feedback.options.timer === 'A' ? status?.timerA
+                    : feedback.options.timer === 'B' ? status?.timerB : undefined
+                return timer !== undefined && timer.state === feedback.options.state
+            },
+        },
         display_visible: {
             type: 'boolean',
             name: 'Output Enabled',
@@ -160,8 +202,8 @@ export function GetFeedbacksList(instance: AdvancedSpeakerTimerInstance): Compan
         },
         timer_visible: {
             type: 'boolean',
-            name: 'Timer Visible',
-            description: 'Changes style when the timer is showing on the output',
+            name: 'Timer Display Enabled',
+            description: 'Changes style when timer visibility is enabled, independently of the output window',
             defaultStyle: {
                 bgcolor: combineRgb(0, 128, 255),
                 color: combineRgb(255, 255, 255),
@@ -188,8 +230,8 @@ export function GetFeedbacksList(instance: AdvancedSpeakerTimerInstance): Compan
         },
         timer_mode: {
             type: 'boolean',
-            name: 'Timer Mode Selected',
-            description: 'Changes style while the app is in the chosen timer mode',
+            name: 'Output Layout Selected',
+            description: 'Changes style while the app uses the chosen output layout',
             defaultStyle: {
                 bgcolor: combineRgb(0, 122, 255),
                 color: combineRgb(255, 255, 255),
@@ -198,14 +240,14 @@ export function GetFeedbacksList(instance: AdvancedSpeakerTimerInstance): Compan
                 {
                     id: 'layout',
                     type: 'dropdown',
-                    label: 'Timer Mode',
+                    label: 'Output Layout',
                     default: 'Single Timer',
                     choices: TIMER_MODE_CHOICES,
                 },
             ],
             callback: (feedback: CompanionFeedbackInfo): boolean => {
                 const status = instance.getAppStatus()
-                return status?.layout === normalizeTimerMode(feedback.options.layout)
+                return status?.layout !== undefined && normalizeTimerMode(status.layout) === normalizeTimerMode(feedback.options.layout)
             },
         },
     }

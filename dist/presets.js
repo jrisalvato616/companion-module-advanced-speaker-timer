@@ -3,11 +3,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.GetPresetList = void 0;
 const base_1 = require("@companion-module/base");
 const timerModes_1 = require("./timerModes");
+const variables_1 = require("./variables");
 const BLACK = (0, base_1.combineRgb)(0, 0, 0);
 const WHITE = (0, base_1.combineRgb)(255, 255, 255);
 const DARK = (0, base_1.combineRgb)(20, 20, 20);
 const GREEN = (0, base_1.combineRgb)(0, 220, 80);
 const AMBER = (0, base_1.combineRgb)(255, 165, 0);
+const YELLOW = (0, base_1.combineRgb)(255, 220, 0);
 const RED = (0, base_1.combineRgb)(255, 40, 40);
 const BLUE = (0, base_1.combineRgb)(0, 90, 200);
 /**
@@ -19,13 +21,13 @@ function GetPresetList(instance) {
     for (const timer of ['A', 'B']) {
         const lower = timer.toLowerCase();
         const category = `Timer ${timer}`;
-        // The headline feature: a live countdown that recolours itself.
+        // Use the app's display text for countdown, count-up and target-time timers.
         presets[`timer_${lower}_countdown`] = {
             type: 'button',
             category,
-            name: `Timer ${timer} countdown (colours on warning/overtime)`,
+            name: `Timer ${timer} live display (status colours)`,
             style: {
-                text: `Timer ${timer}\n$(${instance.label}:timer_${lower}_remaining_time_formatted)`,
+                text: `Timer ${timer}\n$(${instance.label}:timer_${lower}_display_text)`,
                 size: '14',
                 // White while reset/idle; the feedbacks below recolour only the
                 // text, leaving the button background black.
@@ -40,6 +42,11 @@ function GetPresetList(instance) {
                     style: { color: GREEN },
                 },
                 {
+                    feedbackId: `timer_${lower}_paused`,
+                    options: {},
+                    style: { color: YELLOW },
+                },
+                {
                     feedbackId: `timer_${lower}_warning`,
                     options: {},
                     style: { color: AMBER },
@@ -49,14 +56,19 @@ function GetPresetList(instance) {
                     options: {},
                     style: { color: RED },
                 },
+                {
+                    feedbackId: 'timer_state',
+                    options: { timer, state: 'finished' },
+                    style: { color: RED },
+                },
             ],
         };
         presets[`timer_${lower}_elapsed`] = {
             type: 'button',
-            category,
+            category: 'Timer status',
             name: `Timer ${timer} elapsed time`,
             style: {
-                text: `Elapsed\n$(${instance.label}:timer_${lower}_current_time_formatted)`,
+                text: `Elapsed ${timer}\n$(${instance.label}:timer_${lower}_current_time_formatted)`,
                 size: '14',
                 color: WHITE,
                 bgcolor: DARK,
@@ -68,14 +80,10 @@ function GetPresetList(instance) {
             type: 'button',
             category,
             name: `Timer ${timer} start / pause`,
-            style: { text: `Start\n${timer}`, size: '18', color: WHITE, bgcolor: DARK },
+            style: { text: `Start/Pause\n${timer}`, size: '18', color: WHITE, bgcolor: DARK },
             steps: [
                 {
-                    down: [{ actionId: `start_timer_${lower}`, options: {} }],
-                    up: [],
-                },
-                {
-                    down: [{ actionId: `pause_timer_${lower}`, options: {} }],
+                    down: [{ actionId: `toggle_timer_${lower}`, options: {} }],
                     up: [],
                 },
             ],
@@ -83,7 +91,12 @@ function GetPresetList(instance) {
                 {
                     feedbackId: `timer_${lower}_running`,
                     options: {},
-                    style: { bgcolor: GREEN, color: WHITE },
+                    style: { bgcolor: GREEN, color: BLACK },
+                },
+                {
+                    feedbackId: `timer_${lower}_paused`,
+                    options: {},
+                    style: { bgcolor: YELLOW, color: BLACK },
                 },
             ],
         };
@@ -93,7 +106,13 @@ function GetPresetList(instance) {
             name: `Timer ${timer} reset`,
             style: { text: `Reset\n${timer}`, size: '18', color: WHITE, bgcolor: DARK },
             steps: [{ down: [{ actionId: `reset_timer_${lower}`, options: {} }], up: [] }],
-            feedbacks: [],
+            feedbacks: [
+                {
+                    feedbackId: 'timer_state',
+                    options: { timer, state: 'ready' },
+                    style: { bgcolor: BLUE, color: WHITE },
+                },
+            ],
         };
         presets[`timer_${lower}_add_1m`] = {
             type: 'button',
@@ -112,13 +131,13 @@ function GetPresetList(instance) {
             feedbacks: [],
         };
     }
-    // One button per timer mode, lit while that mode is selected.
+    // Output layouts are distinct from each timer's countdown/count-up mode.
     for (const mode of timerModes_1.TIMER_MODE_CHOICES) {
         const key = String(mode.id).toLowerCase().replace(/[^a-z]+/g, '_');
         presets[`timer_mode_${key}`] = {
             type: 'button',
-            category: 'Timer Mode',
-            name: `Timer mode: ${mode.label}`,
+            category: 'Output layouts',
+            name: `Output layout: ${mode.label}`,
             style: { text: mode.label, size: '14', color: WHITE, bgcolor: DARK },
             steps: [{ down: [{ actionId: 'set_layout', options: { layout: mode.id } }], up: [] }],
             feedbacks: [
@@ -134,8 +153,8 @@ function GetPresetList(instance) {
     for (const timer of ['A', 'B']) {
         presets[`timer_preset_knob_${timer.toLowerCase()}`] = {
             type: 'button',
-            category: 'Timer presets',
-            name: `Knob: scroll presets, press to load into Timer ${timer}`,
+            category: 'Rotary controls',
+            name: `Knob: browse timer presets, press to load Timer ${timer}`,
             options: { rotaryActions: true },
             style: {
                 text: `$(${instance.label}:selected_timer_preset)\n$(${instance.label}:selected_timer_preset_number) → ${timer}`,
@@ -156,8 +175,8 @@ function GetPresetList(instance) {
     }
     presets['message_preset_knob'] = {
         type: 'button',
-        category: 'Messages',
-        name: 'Knob: scroll message presets, press to load',
+        category: 'Rotary controls',
+        name: 'Knob: browse message presets, press to load draft',
         options: { rotaryActions: true },
         style: {
             text: `$(${instance.label}:selected_message_preset)\n$(${instance.label}:selected_message_preset_number)`,
@@ -179,8 +198,8 @@ function GetPresetList(instance) {
     presets['toggle_output'] = {
         type: 'button',
         category: 'Output',
-        name: 'Enable / disable output',
-        style: { text: 'Output', size: '18', color: WHITE, bgcolor: DARK },
+        name: 'Enable / disable external display window',
+        style: { text: 'Output', size: '14', color: WHITE, bgcolor: DARK },
         steps: [{ down: [{ actionId: 'toggle_display', options: {} }], up: [] }],
         feedbacks: [
             { feedbackId: 'display_visible', options: {}, style: { bgcolor: BLUE, color: WHITE } },
@@ -189,8 +208,8 @@ function GetPresetList(instance) {
     presets['toggle_timer_visible'] = {
         type: 'button',
         category: 'Output',
-        name: 'Show / hide timer (go to black)',
-        style: { text: 'Show\nTimer', size: '18', color: WHITE, bgcolor: DARK },
+        name: 'Show / hide timer overlay (keep background)',
+        style: { text: 'Timer\nLayer', size: '14', color: WHITE, bgcolor: DARK },
         steps: [{ down: [{ actionId: 'toggle_timer_visible', options: {} }], up: [] }],
         feedbacks: [
             { feedbackId: 'timer_visible', options: {}, style: { bgcolor: GREEN, color: WHITE } },
@@ -198,10 +217,32 @@ function GetPresetList(instance) {
     };
     presets['toggle_message'] = {
         type: 'button',
-        category: 'Messages',
-        name: 'Send / clear live message',
-        style: { text: 'Message', size: '18', color: WHITE, bgcolor: DARK },
+        category: 'More message controls',
+        name: 'Send draft / hide live message',
+        style: { text: 'Send/Hide\nMsg', size: '14', color: WHITE, bgcolor: DARK },
         steps: [{ down: [{ actionId: 'toggle_message', options: {} }], up: [] }],
+        feedbacks: [
+            { feedbackId: 'message_live', options: {}, style: { bgcolor: (0, base_1.combineRgb)(200, 0, 0), color: WHITE } },
+        ],
+    };
+    // Explicit send also replaces a message that is already live.
+    presets['send_message'] = {
+        type: 'button',
+        category: 'Messages',
+        name: 'Send draft / replace live message',
+        style: { text: 'Send\nDraft', size: '18', color: WHITE, bgcolor: DARK },
+        steps: [{ down: [{ actionId: 'send_message', options: {} }], up: [] }],
+        feedbacks: [
+            { feedbackId: 'message_live', options: {}, style: { bgcolor: (0, base_1.combineRgb)(200, 0, 0), color: WHITE } },
+        ],
+    };
+    // Deterministic clear for cue stacks: pressing this never sends a draft.
+    presets['hide_message'] = {
+        type: 'button',
+        category: 'Messages',
+        name: 'Clear live message (keep draft)',
+        style: { text: 'Clear\nMsg', size: '14', color: WHITE, bgcolor: DARK },
+        steps: [{ down: [{ actionId: 'hide_message', options: {} }], up: [] }],
         feedbacks: [
             { feedbackId: 'message_live', options: {}, style: { bgcolor: (0, base_1.combineRgb)(200, 0, 0), color: WHITE } },
         ],
@@ -210,9 +251,9 @@ function GetPresetList(instance) {
     for (const preset of instance.getMessagePresets()) {
         presets[`message_preset_${preset.id}`] = {
             type: 'button',
-            category: 'Messages',
-            name: `Recall message: ${preset.name}`,
-            style: { text: preset.name, size: '14', color: WHITE, bgcolor: DARK },
+            category: 'Message presets',
+            name: `Load draft: ${preset.name}`,
+            style: { text: `Draft\n${preset.name}`, size: '14', color: WHITE, bgcolor: DARK },
             steps: [
                 {
                     down: [{ actionId: 'recall_message_preset', options: { presetId: preset.id } }],
@@ -226,12 +267,14 @@ function GetPresetList(instance) {
     for (const preset of instance.getTimerPresets()) {
         for (const timer of ['A', 'B']) {
             const lower = timer.toLowerCase();
+            const duration = typeof preset.duration === 'number' && Number.isFinite(preset.duration)
+                ? (0, variables_1.formatTime)(preset.duration) : '';
             presets[`timer_preset_${lower}_${preset.id}`] = {
                 type: 'button',
-                category: 'Timer presets',
-                name: `Recall "${preset.name}" to Timer ${timer}`,
+                category: `Timer ${timer} presets`,
+                name: `Load "${preset.name}"${duration ? ` (${duration})` : ''} into Timer ${timer}`,
                 style: {
-                    text: `${preset.name}\n→ ${timer}`,
+                    text: `${preset.name}\n${duration ? `${duration} ` : ''}→ ${timer}`,
                     size: '14',
                     color: WHITE,
                     bgcolor: DARK,
@@ -250,6 +293,15 @@ function GetPresetList(instance) {
                 feedbacks: [],
             };
         }
+    }
+    for (const preset of Object.values(presets)) {
+        if ((preset === null || preset === void 0 ? void 0 : preset.type) !== 'button')
+            continue;
+        preset.feedbacks.push({
+            feedbackId: 'connection_unavailable',
+            options: {},
+            style: { bgcolor: (0, base_1.combineRgb)(80, 80, 80), color: WHITE },
+        });
     }
     return presets;
 }

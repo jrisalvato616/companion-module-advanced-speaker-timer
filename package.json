@@ -1,6 +1,6 @@
 {
   "name": "companion-module-advanced-speaker-timer",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "main": "dist/index.js",
   "description": "Companion module for Advanced Speaker Timer Pro",
   "author": "Advanced Speaker Timer Pro",
@@ -17,7 +17,9 @@
     "build:main": "tsc -p tsconfig.json",
     "build:watch": "tsc -p tsconfig.json --watch",
     "check": "companion-module-check",
-    "package": "npm run build && companion-module-build"
+    "package": "npm run build && companion-module-build",
+    "test": "node --test test/*.test.cjs",
+    "typecheck": "tsc --noEmit --incremental false"
   },
   "dependencies": {
     "@companion-module/base": "~1.13.2"

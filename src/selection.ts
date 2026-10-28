@@ -14,13 +14,14 @@ export class PresetSelection {
     private index = 0
 
     /**
-     * Keeps the highlight in range when the app's list changes. Clamped, not
-     * wrapped: deleting presets should leave the highlight near where it was,
-     * rather than jumping it back to the top.
+     * Keeps the same preset highlighted when the list is reordered. If it was
+     * deleted, clamp to the nearest remaining position.
      */
     setItems(items: PresetInfo[]): void {
+        const selectedId = this.current?.id
+        const selectedIndex = selectedId === undefined ? -1 : items.findIndex(item => item.id === selectedId)
         this.items = items
-        this.index = Math.max(0, Math.min(this.index, items.length - 1))
+        this.index = selectedIndex >= 0 ? selectedIndex : Math.max(0, Math.min(this.index, items.length - 1))
     }
 
     /** Scrolls, wrapping past either end. */

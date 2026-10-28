@@ -1,12 +1,14 @@
 import { CompanionPresetDefinitions, combineRgb } from '@companion-module/base'
 import { AdvancedSpeakerTimerInstance } from './index'
 import { TIMER_MODE_CHOICES } from './timerModes'
+import { formatTime } from './variables'
 
 const BLACK = combineRgb(0, 0, 0)
 const WHITE = combineRgb(255, 255, 255)
 const DARK = combineRgb(20, 20, 20)
 const GREEN = combineRgb(0, 220, 80)
 const AMBER = combineRgb(255, 165, 0)
+const YELLOW = combineRgb(255, 220, 0)
 const RED = combineRgb(255, 40, 40)
 const BLUE = combineRgb(0, 90, 200)
 
@@ -21,13 +23,13 @@ export function GetPresetList(instance: AdvancedSpeakerTimerInstance): Companion
         const lower = timer.toLowerCase()
         const category = `Timer ${timer}`
 
-        // The headline feature: a live countdown that recolours itself.
+        // Use the app's display text for countdown, count-up and target-time timers.
         presets[`timer_${lower}_countdown`] = {
             type: 'button',
             category,
-            name: `Timer ${timer} countdown (colours on warning/overtime)`,
+            name: `Timer ${timer} live display (status colours)`,
             style: {
-                text: `Timer ${timer}\n$(${instance.label}:timer_${lower}_remaining_time_formatted)`,
+                text: `Timer ${timer}\n$(${instance.label}:timer_${lower}_display_text)`,
                 size: '14',
                 // White while reset/idle; the feedbacks below recolour only the
                 // text, leaving the button background black.
@@ -42,6 +44,11 @@ export function GetPresetList(instance: AdvancedSpeakerTimerInstance): Companion
                     style: { color: GREEN },
                 },
                 {
+                    feedbackId: `timer_${lower}_paused`,
+                    options: {},
+                    style: { color: YELLOW },
+                },
+                {
                     feedbackId: `timer_${lower}_warning`,
                     options: {},
                     style: { color: AMBER },
@@ -51,15 +58,20 @@ export function GetPresetList(instance: AdvancedSpeakerTimerInstance): Companion
                     options: {},
                     style: { color: RED },
                 },
+                {
+                    feedbackId: 'timer_state',
+                    options: { timer, state: 'finished' },
+                    style: { color: RED },
+                },
             ],
         }
 
         presets[`timer_${lower}_elapsed`] = {
             type: 'button',
-            category,
+            category: 'Timer status',
             name: `Timer ${timer} elapsed time`,
             style: {
-                text: `Elapsed\n$(${instance.label}:timer_${lower}_current_time_formatted)`,
+                text: `Elapsed ${timer}\n$(${instance.label}:timer_${lower}_current_time_formatted)`,
                 size: '14',
                 color: WHITE,
                 bgcolor: DARK,
@@ -72,14 +84,10 @@ export function GetPresetList(instance: AdvancedSpeakerTimerInstance): Companion
             type: 'button',
             category,
             name: `Timer ${timer} start / pause`,
-            style: { text: `Start\n${timer}`, size: '18', color: WHITE, bgcolor: DARK },
+            style: { text: `Start/Pause\n${timer}`, size: '18', color: WHITE, bgcolor: DARK },
             steps: [
                 {
-                    down: [{ actionId: `start_timer_${lower}`, options: {} }],
-                    up: [],
-                },
-                {
-                    down: [{ actionId: `pause_timer_${lower}`, options: {} }],
+                    down: [{ actionId: `toggle_timer_${lower}`, options: {} }],
                     up: [],
                 },
             ],
@@ -87,7 +95,12 @@ export function GetPresetList(instance: AdvancedSpeakerTimerInstance): Companion
                 {
                     feedbackId: `timer_${lower}_running`,
                     options: {},
-                    style: { bgcolor: GREEN, color: WHITE },
+                    style: { bgcolor: GREEN, color: BLACK },
+                },
+                {
+                    feedbackId: `timer_${lower}_paused`,
+                    options: {},
+                    style: { bgcolor: YELLOW, color: BLACK },
                 },
             ],
         }
@@ -98,7 +111,13 @@ export function GetPresetList(instance: AdvancedSpeakerTimerInstance): Companion
             name: `Timer ${timer} reset`,
             style: { text: `Reset\n${timer}`, size: '18', color: WHITE, bgcolor: DARK },
             steps: [{ down: [{ actionId: `reset_timer_${lower}`, options: {} }], up: [] }],
-            feedbacks: [],
+            feedbacks: [
+                {
+                    feedbackId: 'timer_state',
+                    options: { timer, state: 'ready' },
+                    style: { bgcolor: BLUE, color: WHITE },
+                },
+            ],
         }
 
         presets[`timer_${lower}_add_1m`] = {
@@ -120,13 +139,13 @@ export function GetPresetList(instance: AdvancedSpeakerTimerInstance): Companion
         }
     }
 
-    // One button per timer mode, lit while that mode is selected.
+    // Output layouts are distinct from each timer's countdown/count-up mode.
     for (const mode of TIMER_MODE_CHOICES) {
         const key = String(mode.id).toLowerCase().replace(/[^a-z]+/g, '_')
         presets[`timer_mode_${key}`] = {
             type: 'button',
-            category: 'Timer Mode',
-            name: `Timer mode: ${mode.label}`,
+            category: 'Output layouts',
+            name: `Output layout: ${mode.label}`,
             style: { text: mode.label, size: '14', color: WHITE, bgcolor: DARK },
             steps: [{ down: [{ actionId: 'set_layout', options: { layout: mode.id } }], up: [] }],
             feedbacks: [
@@ -143,8 +162,8 @@ export function GetPresetList(instance: AdvancedSpeakerTimerInstance): Companion
     for (const timer of ['A', 'B'] as const) {
         presets[`timer_preset_knob_${timer.toLowerCase()}`] = {
             type: 'button',
-            category: 'Timer presets',
-            name: `Knob: scroll presets, press to load into Timer ${timer}`,
+            category: 'Rotary controls',
+            name: `Knob: browse timer presets, press to load Timer ${timer}`,
             options: { rotaryActions: true },
             style: {
                 text: `$(${instance.label}:selected_timer_preset)\n$(${instance.label}:selected_timer_preset_number) → ${timer}`,
@@ -166,8 +185,8 @@ export function GetPresetList(instance: AdvancedSpeakerTimerInstance): Companion
 
     presets['message_preset_knob'] = {
         type: 'button',
-        category: 'Messages',
-        name: 'Knob: scroll message presets, press to load',
+        category: 'Rotary controls',
+        name: 'Knob: browse message presets, press to load draft',
         options: { rotaryActions: true },
         style: {
             text: `$(${instance.label}:selected_message_preset)\n$(${instance.label}:selected_message_preset_number)`,
@@ -190,8 +209,8 @@ export function GetPresetList(instance: AdvancedSpeakerTimerInstance): Companion
     presets['toggle_output'] = {
         type: 'button',
         category: 'Output',
-        name: 'Enable / disable output',
-        style: { text: 'Output', size: '18', color: WHITE, bgcolor: DARK },
+        name: 'Enable / disable external display window',
+        style: { text: 'Output', size: '14', color: WHITE, bgcolor: DARK },
         steps: [{ down: [{ actionId: 'toggle_display', options: {} }], up: [] }],
         feedbacks: [
             { feedbackId: 'display_visible', options: {}, style: { bgcolor: BLUE, color: WHITE } },
@@ -201,8 +220,8 @@ export function GetPresetList(instance: AdvancedSpeakerTimerInstance): Companion
     presets['toggle_timer_visible'] = {
         type: 'button',
         category: 'Output',
-        name: 'Show / hide timer (go to black)',
-        style: { text: 'Show\nTimer', size: '18', color: WHITE, bgcolor: DARK },
+        name: 'Show / hide timer overlay (keep background)',
+        style: { text: 'Timer\nLayer', size: '14', color: WHITE, bgcolor: DARK },
         steps: [{ down: [{ actionId: 'toggle_timer_visible', options: {} }], up: [] }],
         feedbacks: [
             { feedbackId: 'timer_visible', options: {}, style: { bgcolor: GREEN, color: WHITE } },
@@ -211,10 +230,34 @@ export function GetPresetList(instance: AdvancedSpeakerTimerInstance): Companion
 
     presets['toggle_message'] = {
         type: 'button',
-        category: 'Messages',
-        name: 'Send / clear live message',
-        style: { text: 'Message', size: '18', color: WHITE, bgcolor: DARK },
+        category: 'More message controls',
+        name: 'Send draft / hide live message',
+        style: { text: 'Send/Hide\nMsg', size: '14', color: WHITE, bgcolor: DARK },
         steps: [{ down: [{ actionId: 'toggle_message', options: {} }], up: [] }],
+        feedbacks: [
+            { feedbackId: 'message_live', options: {}, style: { bgcolor: combineRgb(200, 0, 0), color: WHITE } },
+        ],
+    }
+
+    // Explicit send also replaces a message that is already live.
+    presets['send_message'] = {
+        type: 'button',
+        category: 'Messages',
+        name: 'Send draft / replace live message',
+        style: { text: 'Send\nDraft', size: '18', color: WHITE, bgcolor: DARK },
+        steps: [{ down: [{ actionId: 'send_message', options: {} }], up: [] }],
+        feedbacks: [
+            { feedbackId: 'message_live', options: {}, style: { bgcolor: combineRgb(200, 0, 0), color: WHITE } },
+        ],
+    }
+
+    // Deterministic clear for cue stacks: pressing this never sends a draft.
+    presets['hide_message'] = {
+        type: 'button',
+        category: 'Messages',
+        name: 'Clear live message (keep draft)',
+        style: { text: 'Clear\nMsg', size: '14', color: WHITE, bgcolor: DARK },
+        steps: [{ down: [{ actionId: 'hide_message', options: {} }], up: [] }],
         feedbacks: [
             { feedbackId: 'message_live', options: {}, style: { bgcolor: combineRgb(200, 0, 0), color: WHITE } },
         ],
@@ -224,9 +267,9 @@ export function GetPresetList(instance: AdvancedSpeakerTimerInstance): Companion
     for (const preset of instance.getMessagePresets()) {
         presets[`message_preset_${preset.id}`] = {
             type: 'button',
-            category: 'Messages',
-            name: `Recall message: ${preset.name}`,
-            style: { text: preset.name, size: '14', color: WHITE, bgcolor: DARK },
+            category: 'Message presets',
+            name: `Load draft: ${preset.name}`,
+            style: { text: `Draft\n${preset.name}`, size: '14', color: WHITE, bgcolor: DARK },
             steps: [
                 {
                     down: [{ actionId: 'recall_message_preset', options: { presetId: preset.id } }],
@@ -241,12 +284,14 @@ export function GetPresetList(instance: AdvancedSpeakerTimerInstance): Companion
     for (const preset of instance.getTimerPresets()) {
         for (const timer of ['A', 'B'] as const) {
             const lower = timer.toLowerCase()
+            const duration = typeof preset.duration === 'number' && Number.isFinite(preset.duration)
+                ? formatTime(preset.duration) : ''
             presets[`timer_preset_${lower}_${preset.id}`] = {
                 type: 'button',
-                category: 'Timer presets',
-                name: `Recall "${preset.name}" to Timer ${timer}`,
+                category: `Timer ${timer} presets`,
+                name: `Load "${preset.name}"${duration ? ` (${duration})` : ''} into Timer ${timer}`,
                 style: {
-                    text: `${preset.name}\n→ ${timer}`,
+                    text: `${preset.name}\n${duration ? `${duration} ` : ''}→ ${timer}`,
                     size: '14',
                     color: WHITE,
                     bgcolor: DARK,
@@ -267,5 +312,13 @@ export function GetPresetList(instance: AdvancedSpeakerTimerInstance): Companion
         }
     }
 
+    for (const preset of Object.values(presets)) {
+        if (preset?.type !== 'button') continue
+        preset.feedbacks.push({
+            feedbackId: 'connection_unavailable',
+            options: {},
+            style: { bgcolor: combineRgb(80, 80, 80), color: WHITE },
+        })
+    }
     return presets
 }

@@ -8,22 +8,28 @@ const variables_1 = require("./variables");
 const config_1 = require("./config");
 const presets_1 = require("./presets");
 const net_1 = require("net");
+const string_decoder_1 = require("string_decoder");
 const selection_1 = require("./selection");
 exports.READ_ONLY_ACTIONS = new Set(['status', 'getTimerPresets', 'getMessagePresets']);
+const STATUS_TIMEOUT_MS = 5000;
 class AdvancedSpeakerTimerInstance extends base_1.InstanceBase {
     constructor(internal) {
         super(internal);
         this.socket = null;
         this.reconnectTimer = null;
         this.statusPollTimer = null;
-        this.rxBuffer = '';
         this.connected = false;
+        this.destroyed = false;
+        this.connectedAt = 0;
+        this.availability = 'disconnected';
         this.appStatus = null;
         /** When the app last told us its state, pushed or polled. */
         this.lastStatusAt = 0;
         // The app's presets, and what a rotary has scrolled to in each list.
         this.timerPresets = new selection_1.PresetSelection();
         this.messagePresets = new selection_1.PresetSelection();
+        this.timerPresetsReady = false;
+        this.messagePresetsReady = false;
     }
     async init(config) {
         this.config = config;
@@ -36,94 +42,127 @@ class AdvancedSpeakerTimerInstance extends base_1.InstanceBase {
         this.initConnection();
     }
     async destroy() {
-        this.stopStatusPolling();
-        if (this.reconnectTimer) {
-            clearTimeout(this.reconnectTimer);
-            this.reconnectTimer = null;
-        }
-        if (this.socket) {
-            this.socket.destroy();
-            this.socket = null;
-        }
+        this.destroyed = true;
+        this.clearReconnectTimer();
+        this.closeSocket();
+        this.setUnavailable('disconnected');
     }
     async configUpdated(config) {
         this.config = config;
-        if (this.socket) {
-            this.socket.destroy();
-            this.socket = null;
-        }
         this.initConnection();
     }
     getConfigFields() {
         return (0, config_1.GetConfigFields)();
     }
-    initConnection() {
-        if (this.socket) {
-            this.socket.destroy();
+    clearReconnectTimer() {
+        if (this.reconnectTimer) {
+            clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = null;
         }
-        this.socket = new net_1.Socket();
+    }
+    closeSocket() {
+        this.stopStatusPolling();
         this.connected = false;
-        this.rxBuffer = '';
-        this.socket.on('connect', () => {
+        // Invalidate the identity before destroying: its queued callbacks must
+        // not alter the replacement connection or reconnect a destroyed instance.
+        const socket = this.socket;
+        this.socket = null;
+        socket === null || socket === void 0 ? void 0 : socket.destroy();
+        // Keep the selected identity for a reconnect, but never expose the old
+        // app's preset catalog while awaiting the new connection's lists.
+        this.timerPresetsReady = false;
+        this.messagePresetsReady = false;
+        this.updateHighlightVariables();
+        this.setActionDefinitions((0, actions_1.GetActionsList)(this));
+        this.setPresetDefinitions((0, presets_1.GetPresetList)(this));
+    }
+    setUnavailable(reason) {
+        const changed = this.appStatus !== null || this.availability !== reason;
+        this.appStatus = null;
+        this.availability = reason;
+        this.setVariableValues({ ...(0, variables_1.GetUnavailableVariableValues)(), connection_status: reason });
+        if (changed)
+            this.checkFeedbacks();
+    }
+    initConnection() {
+        if (this.destroyed)
+            return;
+        this.clearReconnectTimer();
+        this.closeSocket();
+        this.lastStatusAt = 0;
+        this.setUnavailable('connecting');
+        this.updateStatus(base_1.InstanceStatus.Connecting);
+        const socket = new net_1.Socket();
+        this.socket = socket;
+        const isCurrent = () => !this.destroyed && this.socket === socket;
+        // Decode across packet boundaries so split accented letters and emoji
+        // survive. Each connection has its own decoder and partial line buffer.
+        const decoder = new string_decoder_1.StringDecoder('utf8');
+        let rxBuffer = '';
+        socket.on('connect', () => {
+            if (!isCurrent())
+                return;
             this.log('info', 'Connected to Advanced Speaker Timer Pro');
             this.connected = true;
-            this.updateStatus(base_1.InstanceStatus.Ok);
-            if (this.reconnectTimer) {
-                clearTimeout(this.reconnectTimer);
-                this.reconnectTimer = null;
-            }
-            // Request initial status, then keep polling. Without this the
-            // module only ever sees the state as it was at connect time, so
-            // feedbacks and variables never update.
+            this.connectedAt = Date.now();
+            this.setUnavailable('waiting');
+            this.clearReconnectTimer();
             this.sendCommand({ action: 'status' });
             this.refreshPresets();
             this.startStatusPolling();
         });
-        this.socket.on('data', (data) => {
+        socket.on('data', (data) => {
             var _a;
-            // Accumulate, because a JSON message can arrive split across TCP
-            // packets. Only whole newline-terminated lines are parsed; any
-            // trailing partial line stays buffered for the next chunk.
-            this.rxBuffer += data.toString();
-            // Don't grow without bound if the peer never sends a newline.
-            if (this.rxBuffer.length > 1000000) {
-                this.log('warn', 'Discarding oversized response buffer');
-                this.rxBuffer = '';
+            if (!isCurrent())
+                return;
+            rxBuffer += decoder.write(data);
+            if (rxBuffer.length > 1000000) {
+                this.log('warn', 'Disconnecting after oversized response buffer');
+                this.closeSocket();
+                this.setUnavailable('disconnected');
+                this.updateStatus(base_1.InstanceStatus.ConnectionFailure);
+                this.scheduleReconnect();
                 return;
             }
-            const lines = this.rxBuffer.split('\n');
-            this.rxBuffer = (_a = lines.pop()) !== null && _a !== void 0 ? _a : '';
+            const lines = rxBuffer.split('\n');
+            rxBuffer = (_a = lines.pop()) !== null && _a !== void 0 ? _a : '';
             for (const line of lines) {
                 if (!line.trim())
                     continue;
                 try {
-                    const response = JSON.parse(line);
-                    this.handleResponse(response);
+                    this.handleResponse(JSON.parse(line));
                 }
                 catch (error) {
                     this.log('warn', `Error parsing response: ${error}`);
                 }
             }
         });
-        this.socket.on('error', (error) => {
+        socket.on('error', (error) => {
+            if (!isCurrent())
+                return;
             this.log('warn', `Connection error: ${error.message}`);
+            this.closeSocket();
+            this.setUnavailable('disconnected');
             this.updateStatus(base_1.InstanceStatus.ConnectionFailure);
-            this.connected = false;
-            this.stopStatusPolling();
             this.scheduleReconnect();
         });
-        this.socket.on('close', () => {
+        socket.on('close', () => {
+            if (!isCurrent())
+                return;
             this.log('warn', 'Connection closed');
+            this.closeSocket();
+            this.setUnavailable('disconnected');
             this.updateStatus(base_1.InstanceStatus.Disconnected);
-            this.connected = false;
-            this.stopStatusPolling();
             this.scheduleReconnect();
         });
         try {
-            this.socket.connect(this.config.port, this.config.host);
+            socket.connect(this.config.port, this.config.host);
         }
         catch (error) {
             this.log('error', `Failed to connect: ${error}`);
+            this.closeSocket();
+            this.setUnavailable('disconnected');
+            this.updateStatus(base_1.InstanceStatus.ConnectionFailure);
             this.scheduleReconnect();
         }
     }
@@ -134,9 +173,15 @@ class AdvancedSpeakerTimerInstance extends base_1.InstanceBase {
     startStatusPolling() {
         this.stopStatusPolling();
         this.statusPollTimer = setInterval(() => {
-            if (this.connected && Date.now() - this.lastStatusAt > 1500) {
-                this.sendCommand({ action: 'status' });
+            if (!this.connected)
+                return;
+            const age = Date.now() - (this.lastStatusAt || this.connectedAt);
+            if (age >= STATUS_TIMEOUT_MS && this.availability !== 'stale') {
+                this.setUnavailable('stale');
+                this.updateStatus(base_1.InstanceStatus.ConnectionFailure, 'No recent timer status');
             }
+            if (age > 1500)
+                this.sendCommand({ action: 'status' });
         }, 1000);
     }
     stopStatusPolling() {
@@ -146,20 +191,26 @@ class AdvancedSpeakerTimerInstance extends base_1.InstanceBase {
         }
     }
     scheduleReconnect() {
-        if (this.reconnectTimer) {
+        if (this.destroyed || this.reconnectTimer)
             return;
-        }
         this.reconnectTimer = setTimeout(() => {
             this.reconnectTimer = null;
+            if (this.destroyed)
+                return;
             this.log('info', 'Attempting to reconnect...');
             this.initConnection();
         }, 5000);
     }
     handleResponse(response) {
-        var _a, _b;
+        var _a, _b, _c, _d;
+        if (response.status === 'error') {
+            this.log('warn', `App rejected ${(_a = response.action) !== null && _a !== void 0 ? _a : 'command'}: ${(_b = response.message) !== null && _b !== void 0 ? _b : 'Unknown error'}`);
+            return;
+        }
         // Preset lists arrive as a top-level action rather than under `data`.
         if (response.action === 'timerPresets' && Array.isArray(response.presets)) {
             this.timerPresets.setItems(response.presets.map((p) => ({ id: p.id, name: p.name, duration: p.duration })));
+            this.timerPresetsReady = true;
             this.updateHighlightVariables();
             this.setActionDefinitions((0, actions_1.GetActionsList)(this));
             this.setPresetDefinitions((0, presets_1.GetPresetList)(this));
@@ -167,6 +218,7 @@ class AdvancedSpeakerTimerInstance extends base_1.InstanceBase {
         }
         if (response.action === 'messagePresets' && Array.isArray(response.presets)) {
             this.messagePresets.setItems(response.presets.map((p) => ({ id: p.id, name: p.name })));
+            this.messagePresetsReady = true;
             this.updateHighlightVariables();
             this.setActionDefinitions((0, actions_1.GetActionsList)(this));
             this.setPresetDefinitions((0, presets_1.GetPresetList)(this));
@@ -174,7 +226,7 @@ class AdvancedSpeakerTimerInstance extends base_1.InstanceBase {
         }
         // The app broadcasts when presets are added, edited, reordered or
         // deleted, so pull the lists again to keep the dropdowns current.
-        if (((_a = response.action) === null || _a === void 0 ? void 0 : _a.startsWith('timerPreset')) || ((_b = response.action) === null || _b === void 0 ? void 0 : _b.startsWith('messagePreset'))) {
+        if (((_c = response.action) === null || _c === void 0 ? void 0 : _c.startsWith('timerPreset')) || ((_d = response.action) === null || _d === void 0 ? void 0 : _d.startsWith('messagePreset'))) {
             this.refreshPresets();
             return;
         }
@@ -183,6 +235,9 @@ class AdvancedSpeakerTimerInstance extends base_1.InstanceBase {
             if (response.data.timerA && response.data.timerB) {
                 this.lastStatusAt = Date.now();
                 this.appStatus = response.data;
+                this.availability = 'connected';
+                this.updateStatus(base_1.InstanceStatus.Ok);
+                this.setVariableValues({ connection_status: 'connected' });
                 this.updateVariables();
                 this.checkFeedbacks();
             }
@@ -195,37 +250,41 @@ class AdvancedSpeakerTimerInstance extends base_1.InstanceBase {
     // MARK: Scrolling presets with a rotary
     /** Scrolls the highlighted timer preset, wrapping at both ends. */
     moveTimerPresetHighlight(step) {
+        if (!this.timerPresetsReady)
+            return;
         this.timerPresets.move(step);
         this.updateHighlightVariables();
     }
     moveMessagePresetHighlight(step) {
+        if (!this.messagePresetsReady)
+            return;
         this.messagePresets.move(step);
         this.updateHighlightVariables();
     }
     highlightedTimerPresetInfo() {
-        return this.timerPresets.current;
+        return this.timerPresetsReady ? this.timerPresets.current : undefined;
     }
     highlightedMessagePresetInfo() {
-        return this.messagePresets.current;
+        return this.messagePresetsReady ? this.messagePresets.current : undefined;
     }
     /** Feeds the little display above a rotary. */
     updateHighlightVariables() {
         var _a, _b;
-        const timer = this.timerPresets.current;
-        const message = this.messagePresets.current;
+        const timer = this.highlightedTimerPresetInfo();
+        const message = this.highlightedMessagePresetInfo();
         this.setVariableValues({
             selected_timer_preset: (_a = timer === null || timer === void 0 ? void 0 : timer.name) !== null && _a !== void 0 ? _a : '—',
             selected_timer_preset_duration: (timer === null || timer === void 0 ? void 0 : timer.duration) === undefined ? '' : (0, variables_1.formatTime)(timer.duration),
-            selected_timer_preset_number: this.timerPresets.position,
+            selected_timer_preset_number: this.timerPresetsReady ? this.timerPresets.position : '0/0',
             selected_message_preset: (_b = message === null || message === void 0 ? void 0 : message.name) !== null && _b !== void 0 ? _b : '—',
-            selected_message_preset_number: this.messagePresets.position,
+            selected_message_preset_number: this.messagePresetsReady ? this.messagePresets.position : '0/0',
         });
     }
     getTimerPresets() {
-        return this.timerPresets.all;
+        return this.timerPresetsReady ? this.timerPresets.all : [];
     }
     getMessagePresets() {
-        return this.messagePresets.all;
+        return this.messagePresetsReady ? this.messagePresets.all : [];
     }
     updateVariables() {
         if (!this.appStatus)
@@ -251,8 +310,44 @@ class AdvancedSpeakerTimerInstance extends base_1.InstanceBase {
             this.log('error', `Failed to send command: ${error}`);
         }
     }
+    hasCurrentStatus() {
+        return this.connected && this.appStatus !== null && Date.now() - this.lastStatusAt < STATUS_TIMEOUT_MS;
+    }
     getAppStatus() {
-        return this.appStatus;
+        return this.hasCurrentStatus() ? this.appStatus : null;
+    }
+    toggleTimer(timer) {
+        var _a;
+        const status = this.getAppStatus();
+        if (!status) {
+            this.log('warn', 'Cannot toggle a timer until current status is available');
+            this.requestStatus();
+            return;
+        }
+        if ((_a = status.capabilities) === null || _a === void 0 ? void 0 : _a.includes('toggleTimer')) {
+            this.sendCommand({ action: 'toggleTimer', timer });
+        }
+        else {
+            // Older apps have only explicit start/pause commands.
+            const state = timer === 'A' ? status.timerA.state : status.timerB.state;
+            this.sendCommand({ action: state === 'running' ? 'pause' : 'start', timer });
+        }
+    }
+    sendDraftMessage() {
+        var _a;
+        const status = this.getAppStatus();
+        if (!status) {
+            this.log('warn', 'Cannot send the draft until current status is available');
+            this.requestStatus();
+            return;
+        }
+        if (!((_a = status.capabilities) === null || _a === void 0 ? void 0 : _a.includes('showMessage'))) {
+            this.log('warn', 'Send Draft requires an updated app; older apps can use Toggle Live Message');
+            return;
+        }
+        // Resolve the draft in the app, after earlier preset recalls. Reading a
+        // cached liveMessage here could send the previous draft in a macro.
+        this.sendCommand({ action: 'showMessage' });
     }
     requestStatus() {
         this.sendCommand({ action: 'status' });

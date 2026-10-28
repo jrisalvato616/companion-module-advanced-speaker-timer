@@ -1,155 +1,90 @@
-# companion-module-advanced-speaker-timer
+# Advanced Speaker Timer — Companion module
 
-BitFocus Companion module for controlling Advanced Speaker Timer Pro.
+Control Advanced Speaker Timer Pro from Bitfocus Companion over a local TCP connection.
 
-## Features
+## Install
 
-This module allows you to control Advanced Speaker Timer Pro from BitFocus Companion, providing:
+Download the `.tgz` module package from this repository's GitHub Releases. In Companion 4 or 5, open **Modules → Import module package**, choose the file, then select version **1.7.1** for your Advanced Speaker Timer connection. You do not need developer mode. Export your Companion configuration before updating an existing setup; existing buttons retain their saved designs.
 
-### Actions
-- **Timer Control**: Start, pause, reset Timer A and Timer B
-- **Time Adjustment**: Add/subtract time from timers (customizable amounts or quick 30s/1min buttons)
-- **Display Control**: Show, hide, or toggle the timer display
-- **Message Control**: Toggle live messages and set custom message text
-- **Preset Application**: Apply timer presets to either timer
-- **Status Requests**: Request current status updates from the app
+See [installation instructions](INSTALL_COMPANION_V4.md) for the full workflow.
 
-### Feedbacks
-- **Timer States**: Visual feedback for running, paused, warning, and overtime states
-- **Display Status**: Shows when the display is visible
-- **Message Status**: Shows when a live message is active
+## App compatibility
 
-### Variables
-- **Timer Information**: Current time, remaining time, duration, and state for both timers
-- **Display Status**: Whether the display is shown
-- **Message Information**: Live message status and text
+Use the matching **Advanced Speaker Timer Pro 1.7.1** app for all features. **Send Draft**, clock-target time adjustments, and accurate clock-target remaining-time variables require that updated app. The Companion package does not include the macOS app.
 
-## Installation
+With older app versions, existing Start/Pause/Reset, preset recall, Toggle Live Message, Set Message, and display controls remain available where supported by that app. Send Draft checks the app's `showMessage` capability and logs an update-needed warning instead of sending an unsupported command. Existing Start/Pause buttons use the legacy explicit Start/Pause commands when the app lacks the newer toggle capability.
 
-### Prerequisites
-1. Advanced Speaker Timer Pro with TCP server enabled (port 8765 by default)
-2. BitFocus Companion v3.0 or later
+## Connect
 
-### Installing the Module
+1. In Advanced Speaker Timer, open the network settings and enable **network control**. It is off by default.
+2. In Companion, add the **Advanced Speaker Timer Pro** connection.
+3. Enter the Mac's IP address, or `127.0.0.1` when Companion runs on the same Mac.
+4. Use TCP port **18765**, unless you changed it in the app. Both ends must use the same port and the selected network interface must be reachable.
 
-1. **Development Installation**:
-   ```bash
-   cd companion-module-advanced-speaker-timer
-   yarn install
-   yarn build
-   ```
+This module uses the app's local TCP server. Internet sharing is a separate service.
 
-2. **Production Installation**:
-   - Copy the built module to your Companion modules directory
-   - Or submit to the Companion module repository for official inclusion
+## Choose ready-made buttons
 
-## Configuration
+- **Timer A / Timer B:** live display, Start/Pause, Reset, and ±1 minute. Reset turns blue when ready; Start/Pause is green while running and yellow while paused. Live time turns amber during warning and red during overtime or after finishing.
+- **Timer A presets / Timer B presets:** your app's presets, grouped by destination. The same preset appears once for each timer because those buttons load different timers. Loading a timer preset resets it; it does not start it.
+- **Timer status:** elapsed-time monitors. These show time accumulated, which differs from a countdown's live display. In Count Up mode the two displays naturally match.
+- **Output layouts:** Single Timer, Dual Timers, Clock Only, or Clock and Timer. These are screen arrangements, separate from each timer's Countdown, Count Up, or Countdown to Time type.
+- **Output:** enabling output opens the presentation window; disabling it closes that window. Timer visibility hides only the timer, leaving the background and messages available.
+- **Messages:** Send Draft and Clear Message are separate, predictable controls. Send Draft also replaces an already-live message. Clear Message hides it and keeps the draft. The older send/hide toggle is retained under **More message controls**.
+- **Message presets:** load a draft without sending it. Use Send Draft afterward, or combine recall then send in one button.
+- **Rotary controls:** turn to highlight a preset and press to load it. Timer A and Timer B share the highlighted timer preset list; loading still targets the timer selected in the action. Reordering presets preserves the highlighted preset's identity.
 
-1. **In Advanced Speaker Timer Pro**:
-   - The TCP server should start automatically on port 8765
-   - Make note of the IP address of the machine running the app
+All stock buttons turn gray when the module lacks recent app status. A disconnected or stale timer is shown as unavailable rather than displaying an old time as if it were live.
 
-2. **In Companion**:
-   - Add a new "Advanced Speaker Timer Pro" connection
-   - Configure the IP address (default: 127.0.0.1 for same machine)
-   - Configure the TCP port (default: 8765)
-   - The module will attempt to connect automatically
+Companion copies a preset when you drag it onto a button. Existing buttons retain their saved design; drag a fresh preset to get the new labels/styles. Existing action, feedback, and preset IDs are preserved.
 
-## Usage Examples
+## Actions and feedback
 
-### Basic Timer Control
-- **Start/Pause/Reset**: Use the basic timer control actions for Timer A or Timer B
-- **Quick Time Adjustments**: Use +30s, +1min, -30s, -1min buttons for quick adjustments
-- **Custom Adjustments**: Use the "Adjust Timer" action with custom values
+Explicit Start, Pause, Reset, Show/Hide Output, Show/Hide Timer and custom ±seconds actions remain available for macros. Time adjustments change a countdown duration or clock deadline; Count Up elapsed timers are not adjusted. Custom adjustments use whole seconds, up to ±3600 per action.
 
-### Display Management
-- **Show Display**: Makes the timer visible on the selected screen
-- **Hide Display**: Hides the timer display
-- **Toggle Display**: Switches display visibility with one button
+**Set Message** accepts Companion variables and multiline text. Enable **Send to screen immediately** to send it in one action. When a message is already live, setting its text updates that live message even if the checkbox is off; use a message preset to stage a separate draft.
 
-### Message Control
-- **Toggle Message**: Show/hide live messages
-- **Set Message**: Display custom messages (e.g., "Break Time", "Q&A")
+Feedbacks report running, paused, warning, overtime, ready/finished state, local output enabled, timer-layer visibility, live message, selected output layout, and connection availability. Visibility feedback reflects the requested timer layer; it does not imply that a presentation window or remote viewer is open. A preset's rotary highlight is not a claim that the preset is currently loaded into a timer.
 
-### Feedback Usage
-- **Visual Status**: Buttons change color based on timer state (green=running, yellow=paused, orange=warning, red=overtime)
-- **Display Indicator**: Button shows when display is active
-- **Message Indicator**: Button shows when live message is displayed
+The app's own warning/overtime flags take precedence. Older apps use conservative fallbacks for the status fields they provide.
 
-### Variables in Text
-Use variables like `$(advanced-speaker-timer:timer_a_remaining_time_formatted)` in button text to show live timer information.
+## Variables
 
-## Network Requirements
+Use your connection's label in variable references, for example `$(timer:timer_a_display_text)` for a connection named `timer`.
 
-- TCP connection on port 8765 (configurable)
-- Both Companion and Advanced Speaker Timer Pro must be on the same network
-- Firewall may need to allow the TCP connection
+- `timer_a_display_text` / `timer_b_display_text`: exactly the app's timer text, including count-up and `+` overtime.
+- `timer_a_mode` / `timer_b_mode`: timer type.
+- `timer_a_remaining_time` / `timer_b_remaining_time`: signed seconds to the deadline; blank for Count Up. Accurate ready/paused clock-target values require the updated app.
+- `timer_a_current_time_formatted` / `timer_b_current_time_formatted`: elapsed time.
+- `live_message`: draft text; `displayed_message`: text currently live when reported by the app.
+- `connection_status`: connecting, waiting, connected, stale, or disconnected.
 
-## Troubleshooting
+The historical `*_remaining_time_formatted` IDs remain aliases for the app display text so existing buttons retain their behavior. Use `*_display_text` for new buttons. Times include hours when needed.
 
-### Connection Issues
-1. **Check IP Address**: Ensure the correct IP address is configured
-2. **Check Port**: Verify the TCP port matches between app and module (default: 8765)
-3. **Network Access**: Ensure both devices can communicate on the network
-4. **Firewall**: Check that the TCP port is not blocked
+## Local development and checks
 
-### App Issues
-1. **TCP Server**: Verify the TCP server is running in Advanced Speaker Timer Pro
-2. **App Running**: Ensure Advanced Speaker Timer Pro is running and active
+From this module directory:
 
-### Module Issues
-1. **Connection Status**: Check the module status in Companion's connections tab
-2. **Logs**: Check Companion logs for detailed error information
-3. **Restart**: Try restarting the module connection
-
-## Development
-
-### Building
 ```bash
-yarn install
-yarn build
+npm test
+npm run typecheck
+npm run build
+npm run check
 ```
 
-### Development Mode
+Tests exercise every preset's references, action payloads, feedback semantics, variable values, reconnects, stale data, UTF-8 framing and rotary selection. When run inside the app repository, an additional test checks action names against the Swift command handlers; that integration check is skipped in a standalone module checkout. The app repository also contains Swift tests for the corresponding behavior.
+
+A read-only connection check is available while the app's network server is enabled:
+
 ```bash
-yarn dev  # Watches for changes and rebuilds automatically
+node test-connection.js
+# Optional: node test-connection.js 192.168.1.50 18765
 ```
 
-### Testing
-- Start Advanced Speaker Timer Pro
-- Configure and test the connection in Companion
-- Test all actions, feedbacks, and variables
+It requests status once and exits. It never starts a timer or changes the app. A timeout usually means the app is not listening on the configured address/port, network control is off, or a firewall blocks the connection.
 
-## API Reference
-
-### Commands Sent to App
-The module sends JSON commands over TCP:
-
-```json
-{"action": "start", "timer": "A"}
-{"action": "pause", "timer": "B"}
-{"action": "adjust", "timer": "A", "value": "30"}
-{"action": "showDisplay"}
-{"action": "setMessage", "message": "Break Time"}
-{"action": "status"}
-```
-
-### Responses from App
-The app responds with JSON status updates:
-
-```json
-{
-  "status": "ok",
-  "data": {
-    "timerA": {"state": "running", "currentTime": 120, "duration": 300, "warningTime": 60, "label": "Timer A"},
-    "timerB": {"state": "ready", "currentTime": 0, "duration": 600, "warningTime": 120, "label": "Timer B"},
-    "displayShown": true,
-    "messageIsLive": false,
-    "liveMessage": ""
-  }
-}
-```
+`npm run package` builds a local Companion package. Building or packaging does not install it into a running Companion instance or publish a release.
 
 ## License
 
-MIT License - See LICENSE file for details
+MIT — see LICENSE.

@@ -1,10 +1,11 @@
 import { InstanceBase, InstanceStatus, SomeCompanionConfigField, runEntrypoint } from '@companion-module/base'
 import { GetActionsList } from './actions'
 import { GetFeedbacksList } from './feedbacks'
-import { GetVariableDefinitions, GetVariableValues, formatTime } from './variables'
+import { GetVariableDefinitions, GetVariableValues, GetUnavailableVariableValues, formatTime } from './variables'
 import { SpeakerTimerConfig, GetConfigFields } from './config'
 import { GetPresetList } from './presets'
 import { Socket } from 'net'
+import { StringDecoder } from 'string_decoder'
 import { PresetInfo, PresetSelection } from './selection'
 
 interface CompanionCommand {
@@ -24,6 +25,7 @@ export type { PresetInfo } from './selection'
 
 interface CompanionResponse {
     status?: string
+    message?: string
     /** Present on preset lists and on broadcast notifications. */
     action?: string
     data?: any
@@ -41,6 +43,7 @@ interface TimerStatus {
     isWarning?: boolean
     isOvertime?: boolean
     displayText?: string
+    remainingTime?: number | null
 }
 
 interface AppStatus {
@@ -53,20 +56,28 @@ interface AppStatus {
     liveMessage: string
     /** Timer mode name, e.g. "Clock + Timer". Optional: older app versions don't report it. */
     layout?: string
+    capabilities?: string[]
+    displayedMessage?: string
 }
+
+const STATUS_TIMEOUT_MS = 5000
 
 export class AdvancedSpeakerTimerInstance extends InstanceBase<SpeakerTimerConfig> {
     private socket: Socket | null = null
     private reconnectTimer: NodeJS.Timeout | null = null
     private statusPollTimer: NodeJS.Timeout | null = null
-    private rxBuffer = ''
     private connected = false
+    private destroyed = false
+    private connectedAt = 0
+    private availability = 'disconnected'
     private appStatus: AppStatus | null = null
     /** When the app last told us its state, pushed or polled. */
     private lastStatusAt = 0
     // The app's presets, and what a rotary has scrolled to in each list.
     private timerPresets = new PresetSelection()
     private messagePresets = new PresetSelection()
+    private timerPresetsReady = false
+    private messagePresetsReady = false
     public config!: SpeakerTimerConfig
 
     constructor(internal: unknown) {
@@ -87,25 +98,14 @@ export class AdvancedSpeakerTimerInstance extends InstanceBase<SpeakerTimerConfi
     }
 
     async destroy(): Promise<void> {
-        this.stopStatusPolling()
-        if (this.reconnectTimer) {
-            clearTimeout(this.reconnectTimer)
-            this.reconnectTimer = null
-        }
-        if (this.socket) {
-            this.socket.destroy()
-            this.socket = null
-        }
+        this.destroyed = true
+        this.clearReconnectTimer()
+        this.closeSocket()
+        this.setUnavailable('disconnected')
     }
 
     async configUpdated(config: SpeakerTimerConfig): Promise<void> {
         this.config = config
-
-        if (this.socket) {
-            this.socket.destroy()
-            this.socket = null
-        }
-
         this.initConnection()
     }
 
@@ -113,80 +113,115 @@ export class AdvancedSpeakerTimerInstance extends InstanceBase<SpeakerTimerConfi
         return GetConfigFields()
     }
 
-    private initConnection(): void {
-        if (this.socket) {
-            this.socket.destroy()
+    private clearReconnectTimer(): void {
+        if (this.reconnectTimer) {
+            clearTimeout(this.reconnectTimer)
+            this.reconnectTimer = null
         }
+    }
 
-        this.socket = new Socket()
+    private closeSocket(): void {
+        this.stopStatusPolling()
         this.connected = false
-        this.rxBuffer = ''
+        // Invalidate the identity before destroying: its queued callbacks must
+        // not alter the replacement connection or reconnect a destroyed instance.
+        const socket = this.socket
+        this.socket = null
+        socket?.destroy()
+        // Keep the selected identity for a reconnect, but never expose the old
+        // app's preset catalog while awaiting the new connection's lists.
+        this.timerPresetsReady = false
+        this.messagePresetsReady = false
+        this.updateHighlightVariables()
+        this.setActionDefinitions(GetActionsList(this))
+        this.setPresetDefinitions(GetPresetList(this))
+    }
 
-        this.socket.on('connect', () => {
+    private setUnavailable(reason: string): void {
+        const changed = this.appStatus !== null || this.availability !== reason
+        this.appStatus = null
+        this.availability = reason
+        this.setVariableValues({ ...GetUnavailableVariableValues(), connection_status: reason })
+        if (changed) this.checkFeedbacks()
+    }
+
+    private initConnection(): void {
+        if (this.destroyed) return
+        this.clearReconnectTimer()
+        this.closeSocket()
+        this.lastStatusAt = 0
+        this.setUnavailable('connecting')
+        this.updateStatus(InstanceStatus.Connecting)
+
+        const socket = new Socket()
+        this.socket = socket
+        const isCurrent = () => !this.destroyed && this.socket === socket
+        // Decode across packet boundaries so split accented letters and emoji
+        // survive. Each connection has its own decoder and partial line buffer.
+        const decoder = new StringDecoder('utf8')
+        let rxBuffer = ''
+
+        socket.on('connect', () => {
+            if (!isCurrent()) return
             this.log('info', 'Connected to Advanced Speaker Timer Pro')
             this.connected = true
-            this.updateStatus(InstanceStatus.Ok)
-
-            if (this.reconnectTimer) {
-                clearTimeout(this.reconnectTimer)
-                this.reconnectTimer = null
-            }
-
-            // Request initial status, then keep polling. Without this the
-            // module only ever sees the state as it was at connect time, so
-            // feedbacks and variables never update.
+            this.connectedAt = Date.now()
+            this.setUnavailable('waiting')
+            this.clearReconnectTimer()
             this.sendCommand({ action: 'status' })
             this.refreshPresets()
             this.startStatusPolling()
         })
 
-        this.socket.on('data', (data: Buffer) => {
-            // Accumulate, because a JSON message can arrive split across TCP
-            // packets. Only whole newline-terminated lines are parsed; any
-            // trailing partial line stays buffered for the next chunk.
-            this.rxBuffer += data.toString()
-
-            // Don't grow without bound if the peer never sends a newline.
-            if (this.rxBuffer.length > 1_000_000) {
-                this.log('warn', 'Discarding oversized response buffer')
-                this.rxBuffer = ''
+        socket.on('data', (data: Buffer) => {
+            if (!isCurrent()) return
+            rxBuffer += decoder.write(data)
+            if (rxBuffer.length > 1_000_000) {
+                this.log('warn', 'Disconnecting after oversized response buffer')
+                this.closeSocket()
+                this.setUnavailable('disconnected')
+                this.updateStatus(InstanceStatus.ConnectionFailure)
+                this.scheduleReconnect()
                 return
             }
 
-            const lines = this.rxBuffer.split('\n')
-            this.rxBuffer = lines.pop() ?? ''
-
+            const lines = rxBuffer.split('\n')
+            rxBuffer = lines.pop() ?? ''
             for (const line of lines) {
                 if (!line.trim()) continue
                 try {
-                    const response: CompanionResponse = JSON.parse(line)
-                    this.handleResponse(response)
+                    this.handleResponse(JSON.parse(line) as CompanionResponse)
                 } catch (error) {
                     this.log('warn', `Error parsing response: ${error}`)
                 }
             }
         })
 
-        this.socket.on('error', (error: Error) => {
+        socket.on('error', (error: Error) => {
+            if (!isCurrent()) return
             this.log('warn', `Connection error: ${error.message}`)
+            this.closeSocket()
+            this.setUnavailable('disconnected')
             this.updateStatus(InstanceStatus.ConnectionFailure)
-            this.connected = false
-            this.stopStatusPolling()
             this.scheduleReconnect()
         })
 
-        this.socket.on('close', () => {
+        socket.on('close', () => {
+            if (!isCurrent()) return
             this.log('warn', 'Connection closed')
+            this.closeSocket()
+            this.setUnavailable('disconnected')
             this.updateStatus(InstanceStatus.Disconnected)
-            this.connected = false
-            this.stopStatusPolling()
             this.scheduleReconnect()
         })
 
         try {
-            this.socket.connect(this.config.port, this.config.host)
+            socket.connect(this.config.port, this.config.host)
         } catch (error) {
             this.log('error', `Failed to connect: ${error}`)
+            this.closeSocket()
+            this.setUnavailable('disconnected')
+            this.updateStatus(InstanceStatus.ConnectionFailure)
             this.scheduleReconnect()
         }
     }
@@ -198,9 +233,13 @@ export class AdvancedSpeakerTimerInstance extends InstanceBase<SpeakerTimerConfi
     private startStatusPolling(): void {
         this.stopStatusPolling()
         this.statusPollTimer = setInterval(() => {
-            if (this.connected && Date.now() - this.lastStatusAt > 1500) {
-                this.sendCommand({ action: 'status' })
+            if (!this.connected) return
+            const age = Date.now() - (this.lastStatusAt || this.connectedAt)
+            if (age >= STATUS_TIMEOUT_MS && this.availability !== 'stale') {
+                this.setUnavailable('stale')
+                this.updateStatus(InstanceStatus.ConnectionFailure, 'No recent timer status')
             }
+            if (age > 1500) this.sendCommand({ action: 'status' })
         }, 1000)
     }
 
@@ -212,21 +251,25 @@ export class AdvancedSpeakerTimerInstance extends InstanceBase<SpeakerTimerConfi
     }
 
     private scheduleReconnect(): void {
-        if (this.reconnectTimer) {
-            return
-        }
+        if (this.destroyed || this.reconnectTimer) return
 
         this.reconnectTimer = setTimeout(() => {
             this.reconnectTimer = null
+            if (this.destroyed) return
             this.log('info', 'Attempting to reconnect...')
             this.initConnection()
         }, 5000)
     }
 
     private handleResponse(response: CompanionResponse): void {
+        if (response.status === 'error') {
+            this.log('warn', `App rejected ${response.action ?? 'command'}: ${response.message ?? 'Unknown error'}`)
+            return
+        }
         // Preset lists arrive as a top-level action rather than under `data`.
         if (response.action === 'timerPresets' && Array.isArray(response.presets)) {
             this.timerPresets.setItems(response.presets.map((p) => ({ id: p.id, name: p.name, duration: p.duration })))
+            this.timerPresetsReady = true
             this.updateHighlightVariables()
             this.setActionDefinitions(GetActionsList(this))
             this.setPresetDefinitions(GetPresetList(this))
@@ -234,6 +277,7 @@ export class AdvancedSpeakerTimerInstance extends InstanceBase<SpeakerTimerConfi
         }
         if (response.action === 'messagePresets' && Array.isArray(response.presets)) {
             this.messagePresets.setItems(response.presets.map((p) => ({ id: p.id, name: p.name })))
+            this.messagePresetsReady = true
             this.updateHighlightVariables()
             this.setActionDefinitions(GetActionsList(this))
             this.setPresetDefinitions(GetPresetList(this))
@@ -251,6 +295,9 @@ export class AdvancedSpeakerTimerInstance extends InstanceBase<SpeakerTimerConfi
             if (response.data.timerA && response.data.timerB) {
                 this.lastStatusAt = Date.now()
                 this.appStatus = response.data as AppStatus
+                this.availability = 'connected'
+                this.updateStatus(InstanceStatus.Ok)
+                this.setVariableValues({ connection_status: 'connected' })
                 this.updateVariables()
                 this.checkFeedbacks()
             }
@@ -266,42 +313,44 @@ export class AdvancedSpeakerTimerInstance extends InstanceBase<SpeakerTimerConfi
 
     /** Scrolls the highlighted timer preset, wrapping at both ends. */
     public moveTimerPresetHighlight(step: number): void {
+        if (!this.timerPresetsReady) return
         this.timerPresets.move(step)
         this.updateHighlightVariables()
     }
 
     public moveMessagePresetHighlight(step: number): void {
+        if (!this.messagePresetsReady) return
         this.messagePresets.move(step)
         this.updateHighlightVariables()
     }
 
     public highlightedTimerPresetInfo(): PresetInfo | undefined {
-        return this.timerPresets.current
+        return this.timerPresetsReady ? this.timerPresets.current : undefined
     }
 
     public highlightedMessagePresetInfo(): PresetInfo | undefined {
-        return this.messagePresets.current
+        return this.messagePresetsReady ? this.messagePresets.current : undefined
     }
 
     /** Feeds the little display above a rotary. */
     private updateHighlightVariables(): void {
-        const timer = this.timerPresets.current
-        const message = this.messagePresets.current
+        const timer = this.highlightedTimerPresetInfo()
+        const message = this.highlightedMessagePresetInfo()
         this.setVariableValues({
             selected_timer_preset: timer?.name ?? '—',
             selected_timer_preset_duration: timer?.duration === undefined ? '' : formatTime(timer.duration),
-            selected_timer_preset_number: this.timerPresets.position,
+            selected_timer_preset_number: this.timerPresetsReady ? this.timerPresets.position : '0/0',
             selected_message_preset: message?.name ?? '—',
-            selected_message_preset_number: this.messagePresets.position,
+            selected_message_preset_number: this.messagePresetsReady ? this.messagePresets.position : '0/0',
         })
     }
 
     public getTimerPresets(): PresetInfo[] {
-        return this.timerPresets.all
+        return this.timerPresetsReady ? this.timerPresets.all : []
     }
 
     public getMessagePresets(): PresetInfo[] {
-        return this.messagePresets.all
+        return this.messagePresetsReady ? this.messagePresets.all : []
     }
 
     private updateVariables(): void {
@@ -330,8 +379,44 @@ export class AdvancedSpeakerTimerInstance extends InstanceBase<SpeakerTimerConfi
         }
     }
 
+    public hasCurrentStatus(): boolean {
+        return this.connected && this.appStatus !== null && Date.now() - this.lastStatusAt < STATUS_TIMEOUT_MS
+    }
+
     public getAppStatus(): AppStatus | null {
-        return this.appStatus
+        return this.hasCurrentStatus() ? this.appStatus : null
+    }
+
+    public toggleTimer(timer: 'A' | 'B'): void {
+        const status = this.getAppStatus()
+        if (!status) {
+            this.log('warn', 'Cannot toggle a timer until current status is available')
+            this.requestStatus()
+            return
+        }
+        if (status.capabilities?.includes('toggleTimer')) {
+            this.sendCommand({ action: 'toggleTimer', timer })
+        } else {
+            // Older apps have only explicit start/pause commands.
+            const state = timer === 'A' ? status.timerA.state : status.timerB.state
+            this.sendCommand({ action: state === 'running' ? 'pause' : 'start', timer })
+        }
+    }
+
+    public sendDraftMessage(): void {
+        const status = this.getAppStatus()
+        if (!status) {
+            this.log('warn', 'Cannot send the draft until current status is available')
+            this.requestStatus()
+            return
+        }
+        if (!status.capabilities?.includes('showMessage')) {
+            this.log('warn', 'Send Draft requires an updated app; older apps can use Toggle Live Message')
+            return
+        }
+        // Resolve the draft in the app, after earlier preset recalls. Reading a
+        // cached liveMessage here could send the previous draft in a macro.
+        this.sendCommand({ action: 'showMessage' })
     }
 
     public requestStatus(): void {

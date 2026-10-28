@@ -1,97 +1,55 @@
-# Packaging and distributing the module
+# Packaging and distributing the Companion module
 
 ## Build a distributable package
 
+Install the locked dependencies in a fresh checkout, then validate and package:
+
 ```bash
-npm install          # once
+npm ci
+npm test
+npm run typecheck
 npm run package
-```
-
-This produces `advanced-speaker-timer-<version>.tgz` (~25 KB) in the module
-folder. That single file is what you send to someone else — no `node_modules`,
-no zip of the whole folder.
-
-`npm run package` runs the TypeScript build and then `companion-module-build`,
-the official Bitfocus tool. The tool bundles all dependencies into one
-`pkg/main.js`, rewrites the manifest `entrypoint` to match, and compresses the
-result. Hand-rolled `tar`/`zip` archives of the source folder are **not** a
-valid module package and will only load in developer mode.
-
-Validate the manifest at any time with:
-
-```bash
 npm run check
 ```
 
-## How someone else installs it
+`npm run package` builds TypeScript and runs the official Bitfocus `companion-module-build` tool. It writes `advanced-speaker-timer-<version>.tgz` in this directory. The archive contains the bundled module code, package metadata, and Companion manifest. It contains no macOS app or user configuration.
 
-1. Open Companion and go to the **Modules** page.
-2. Choose the option to import/install a module from a file.
-3. Select the `.tgz` file.
+The tool bundles dependencies into `pkg/main.js` and changes the packaged manifest entrypoint to `../main.js`. Do not distribute a tar/zip of the source directory as an installable module.
 
-Companion treats it the same as a module from the official store. They do
-**not** need developer mode, and they should not put the folder in
-`~/companion-modules-dev/`.
+Run `companion-module-build` without `--dev` for a production package. A prerelease can use `--prerelease` and a distinct prerelease version such as `1.7.1-dev.1`. Companion identifies an installed version by module ID and version; a prerelease flag alone does not make another package with the same version distinct.
 
-## Testing the packaged build yourself
+## Version metadata
 
-Developer mode normally runs your source, so it can hide packaging problems.
-To make Companion run the packaged output instead, create an empty file named
-`DEBUG-PACKAGED` in the module folder:
+Keep these fields synchronized when changing the module version:
 
-```bash
-touch DEBUG-PACKAGED
-```
+- `package.json`: `version`
+- `companion/manifest.json`: `version`
+- `package-lock.json`: top-level `version` and `packages[""].version`
 
-Companion then loads from `pkg/` rather than the source. Delete the file to go
-back to normal development.
+The build tool uses **package.json's version** for the packaged module and copies the other manifest fields from `companion/manifest.json`. Keep both source versions aligned so source loading and packaged loading agree. The source entrypoint remains `../dist/index.js`; the build tool rewrites it only inside the package.
 
-## Manifest notes
+The module currently uses `node18` and Companion API `1.13.2`. The packaged module has been tested with Companion **5.0.3**; Companion 4 also supports the package-import workflow. Do not change the runtime or claim additional version compatibility without testing it.
 
-`companion/manifest.json` is the source of truth — not `package.json`. It must
-sit in the `companion/` subfolder, and it needs all of: `id`, `name`,
-`shortname`, `description`, `version`, `license`, `repository`, `bugs`,
-`maintainers`, `legacyIds`, `runtime`, `manufacturer`, `products`, `keywords`.
+## Verify the exact package
 
-The `runtime.entrypoint` is relative to the manifest, so it points at
-`../dist/index.js` in source form. The build tool rewrites it to `../main.js`
-inside the package.
+1. Confirm the archive contains `pkg/main.js`, `pkg/package.json`, and `pkg/companion/manifest.json` with the intended version.
+2. Import the final `.tgz` through **Modules → Import module package** in Companion. Select that exact version on the connection.
+3. Check connection startup, current timer variables, Start/Pause/Reset, message sending/clearing, and a stock preset's feedback.
+4. Record the package checksum and publish the same file that was validated.
 
-`runtime.type` is currently `node18`, which loads on both Companion 3.x and
-4.x. Bump it to `node22` only if you no longer care about Companion 3.x.
+Testing through an installed package exercises the bundled entrypoint and runtime. Loading source in developer mode is not a substitute. For troubleshooting a development checkout, the tools also support `DEBUG-PACKAGED`, which switches developer loading to `pkg/`; remove that marker when returning to ordinary source development.
 
-## Publishing to the public module repo
+## Publish source and the module archive
 
-This folder lives inside the private `advanced-speaker-timer` repo, which is
-the single source of truth. The public module-only repo is a subtree of it:
+This module is maintained in a subdirectory of the app repository and published separately at:
 
-```bash
-git push                                    # private repo (app + module)
-git subtree push --prefix=companion-module-advanced-speaker-timer module-public main
-```
+`https://github.com/jrisalvato616/companion-module-advanced-speaker-timer`
 
-The `module-public` remote is
-`https://github.com/jrisalvato616/companion-module-advanced-speaker-timer`.
+Publish only the module subtree to that public repository. Keep its generated `dist` files in sync with `src`. Attach the final `.tgz` to a release/tag identifying the same source state. Do not include local test sessions, Companion configuration backups, development app bundles, or `node_modules` in the release.
 
-## Two things that will silently break the module
+For a coordinated app/module release, use the same version for both and describe any app requirements. Module **1.7.1** uses the matching app **1.7.1** for Send Draft and the clock-target fixes. The app repository's all-in-one release script builds and publishes app artifacts too; use the module's own package command when publishing only its `.tgz`.
 
-Both were real bugs here, and neither shows up in developer mode:
+## Runtime requirements
 
-1. **`runEntrypoint()` must be called** at the end of `src/index.ts`. Without
-   it the process starts, defines the class, and exits — Companion reports
-   "Failed to initialize instance: Restart forced" on a loop, and because no
-   instance runs, the config fields (Host/Port) never appear.
-2. **Status must be polled.** Requesting it only on connect leaves every
-   feedback and variable frozen at the state from connect time.
-
-## Bumping the version
-
-The module uses the same version number as the app (app 1.5.1 ships with
-module 1.5.1), so it's obvious which module goes with which app. Update
-`version` in **both** `package.json` and `companion/manifest.json` whenever
-the app's `MARKETING_VERSION` changes, then re-run `npm run package`.
-`scripts/make-release.sh` refuses to build if the numbers differ.
-
-Companion uses the manifest version to decide whether an installed module is
-being upgraded, so it may offer an upgrade with no module changes. That's
-harmless.
+- `runEntrypoint()` at the end of `src/index.ts` starts Companion's IPC handshake. Without it, the process exits before the connection initializes.
+- New apps push timer updates; fallback status polling keeps older or idle connections current. Stale/disconnected state must clear live-looking values and feedback.
